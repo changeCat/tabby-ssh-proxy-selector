@@ -204,7 +204,7 @@ npm pack
 
 ### 7.2 找到 Tabby 插件目录
 
-Windows 常见目录：
+进入插件目录：
 
 - `C:/Users/你的用户名/AppData/Roaming/tabby/plugins`
 
@@ -213,7 +213,7 @@ Windows 常见目录：
 打开终端，执行：
 
 ```bat
-cd /d C:\Users\你的用户名\AppData\Roaming\tabby\plugins && "C:\Program Files\nodejs\npm.cmd" install "你的项目目录\tabby-ssh-proxy-selector-0.0.1.tgz" --legacy-peer-deps
+& "C:/Program Files/nodejs/npm.cmd" install "E:/develop/codes/tabby_proxy/tabby-ssh-proxy-selector-0.0.1.tgz" --legacy-peer-deps
 ```
 
 如果你的用户名或项目目录不同，请把路径改成你自己的。
@@ -262,7 +262,7 @@ cd /d C:\Users\你的用户名\AppData\Roaming\tabby\plugins && "C:\Program File
 进入 Tabby 插件目录后执行：
 
 ```bat
-cd /d C:\Users\你的用户名\AppData\Roaming\tabby\plugins && "C:\Program Files\nodejs\npm.cmd" uninstall tabby-ssh-proxy-selector
+& "C:/Program Files/nodejs/npm.cmd" uninstall tabby-ssh-proxy-selector
 ```
 
 ### 9.2 手动删除（兜底方式）
