@@ -168,6 +168,32 @@ npm pack
 
 这个 `.tgz` 文件就是可以安装到 Tabby 的插件包。
 
+### 5.5 GitHub 自动构建并发布
+
+如果项目已经托管到 GitHub，可以直接用 [`release-package`](.github/workflows/release.yml) 工作流在 GitHub 页面上手动构建和发布。
+
+触发方式：
+
+1. 先修改 [`package.json`](package.json) 里的 `version` 并推送到 GitHub
+2. 打开仓库的 **Actions** 页面
+3. 选择 [`release-package`](.github/workflows/release.yml)
+4. 点击 **Run workflow**
+5. 在输入框里填写版本 tag，例如 `v0.0.2`
+6. 点击运行
+
+触发后，GitHub Actions 会自动执行：
+
+1. 安装依赖
+2. 执行 `npm run build`
+3. 执行 `npm pack`
+4. 在 GitHub Releases 上传生成的 `.tgz` 包
+
+发布完成后，你可以在仓库的 **Releases** 页面看到对应版本，例如：
+
+- `v0.0.2`
+
+工作流会自动创建对应 tag、构建 `.tgz` 包，并在 GitHub Releases 中生成对应版本发布页。
+
 ---
 
 ## 6. 版本号该怎么改
@@ -183,10 +209,13 @@ npm pack
 发布步骤：
 
 1. 修改 [`package.json`](package.json) 的 `version`
-2. 执行 [`npm run build`](package.json)
-3. 执行 [`npm run pack`](package.json)
-4. 找到新生成的 `.tgz`
-5. 在 Tabby 中重新安装新包
+2. 提交并推送代码
+3. 打开 GitHub 仓库的 **Actions** 页面
+4. 手动运行 [`release-package`](.github/workflows/release.yml)
+5. 输入版本 tag，例如 `v0.0.2`
+6. 等待 GitHub Actions 自动创建 Release 并上传 `.tgz`
+7. 复制 GitHub Release 附件直链
+8. 在 Tabby 中使用该直链重新安装新包
 
 ---
 
@@ -194,13 +223,13 @@ npm pack
 
 下面是 Windows 下最容易成功的安装方式。
 
-### 7.1 找到打包后的文件
+### 7.1 获取 GitHub Release 附件直链
 
-例如：
+进入仓库的 **Releases** 页面后，右键复制对应 `.tgz` 附件链接。
 
-- [`tabby-ssh-proxy-selector-0.0.1.tgz`](tabby-ssh-proxy-selector-0.0.1.tgz)
+链接格式通常类似：
 
-它通常就在项目根目录。
+- `https://github.com/<owner>/<repo>/releases/download/v0.0.2/tabby-ssh-proxy-selector-0.0.2.tgz`
 
 ### 7.2 找到 Tabby 插件目录
 
@@ -213,10 +242,10 @@ npm pack
 打开终端，执行：
 
 ```bat
-& "C:/Program Files/nodejs/npm.cmd" install "E:/develop/codes/tabby_proxy/tabby-ssh-proxy-selector-0.0.1.tgz" --legacy-peer-deps
+& "C:/Program Files/nodejs/npm.cmd" install "https://github.com/<owner>/<repo>/releases/download/v0.0.2/tabby-ssh-proxy-selector-0.0.2.tgz" --legacy-peer-deps
 ```
 
-如果你的用户名或项目目录不同，请把路径改成你自己的。
+把 `<owner>` 和 `<repo>` 替换成你 GitHub 仓库的实际值即可。这里使用的是 GitHub Release 附件直链，不需要先把包下载到本地目录。
 
 ### 7.4 重启 Tabby
 
@@ -281,7 +310,7 @@ npm pack
 如果你已经装过旧版本，升级时建议按下面流程：
 
 1. 修改 [`package.json`](package.json) 版本号
-2. 重新打包生成新的 `.tgz`
+2. 重新打包生成新的 `.tgz`，或者从 GitHub Releases 下载新版 `.tgz`
 3. 完全退出 Tabby
 4. 在插件目录重新执行安装命令
 5. 重新打开 Tabby
