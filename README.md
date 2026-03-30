@@ -166,7 +166,7 @@ npm pack
 
 - `tabby-ssh-proxy-selector-0.0.1.tgz`
 
-这个 `.tgz` 文件就是可以安装到 Tabby 的插件包。
+这个 `.tgz` 文件是标准 npm 打包产物。日常安装建议直接使用 GitHub Release 工作流生成的 `.zip` 发布包。
 
 ### 5.5 GitHub 自动构建并发布
 
@@ -186,13 +186,16 @@ npm pack
 1. 安装依赖
 2. 执行 `npm run build`
 3. 执行 `npm pack`
-4. 在 GitHub Releases 上传生成的 `.tgz` 包
+4. 把生成的 npm `.tgz` 包解开为插件目录
+5. 将目录重命名为 `tabby-ssh-proxy-selector`
+6. 再打成一个可直接解压的 `.zip` 发布包
+7. 在 GitHub Releases 上传该 `.zip` 文件
 
 发布完成后，你可以在仓库的 **Releases** 页面看到对应版本，例如：
 
 - `v0.0.2`
 
-工作流会自动创建对应 tag、构建 `.tgz` 包，并在 GitHub Releases 中生成对应版本发布页。
+工作流会自动创建对应 tag、构建可直接解压安装的 `.zip` 发布包，并在 GitHub Releases 中生成对应版本发布页。
 
 ---
 
@@ -213,9 +216,8 @@ npm pack
 3. 打开 GitHub 仓库的 **Actions** 页面
 4. 手动运行 [`release-package`](.github/workflows/release.yml)
 5. 输入版本 tag，例如 `v0.0.2`
-6. 等待 GitHub Actions 自动创建 Release 并上传 `.tgz`
-7. 复制 GitHub Release 附件直链
-8. 在 Tabby 中使用该直链重新安装新包
+6. 等待 GitHub Actions 自动创建 Release 并上传 `.zip`
+7. 下载 GitHub Release 附件并按下文的解压方式安装
 
 ---
 
@@ -223,31 +225,27 @@ npm pack
 
 下面是 Windows 下最容易成功的安装方式。
 
-### 7.1 获取 GitHub Release 附件直链
+### 7.1 直接解压安装（唯一推荐方式）
 
-进入仓库的 **Releases** 页面后，右键复制对应 `.tgz` 附件链接。
+如果你是从 GitHub 的 **Releases** 页面下载工作流生成的发布包，请直接按下面步骤安装。
 
-链接格式通常类似：
+1. 下载类似下面名称的发布包：
+   - `tabby-ssh-proxy-selector-0.0.2.zip`
+2. 使用 7-Zip、WinRAR 或系统自带解压功能，直接解压这个 `.zip`
+3. 解压后，你会得到一个名为 `tabby-ssh-proxy-selector` 的文件夹
+4. 把该文件夹移动到 Tabby 插件目录下的 `node_modules` 目录
 
-- `https://github.com/<owner>/<repo>/releases/download/v0.0.2/tabby-ssh-proxy-selector-0.0.2.tgz`
+目标路径：
 
-### 7.2 找到 Tabby 插件目录
+- `C:/Users/你的用户名/AppData/Roaming/tabby/plugins/node_modules/`
 
-进入插件目录：
+也就是说，最终目录结构应类似：
 
-- `C:/Users/你的用户名/AppData/Roaming/tabby/plugins`
+- `C:/Users/你的用户名/AppData/Roaming/tabby/plugins/node_modules/tabby-ssh-proxy-selector`
 
-### 7.3 安装插件
+这种发布包已经在工作流里处理好了，不需要再对里面的内容进行第二次解压。
 
-打开终端，执行：
-
-```bat
-& "C:/Program Files/nodejs/npm.cmd" install "https://github.com/<owner>/<repo>/releases/download/v0.0.2/tabby-ssh-proxy-selector-0.0.2.tgz" --legacy-peer-deps
-```
-
-把 `<owner>` 和 `<repo>` 替换成你 GitHub 仓库的实际值即可。这里使用的是 GitHub Release 附件直链，不需要先把包下载到本地目录。
-
-### 7.4 重启 Tabby
+### 7.2 重启 Tabby
 
 安装完成后：
 
@@ -310,9 +308,9 @@ npm pack
 如果你已经装过旧版本，升级时建议按下面流程：
 
 1. 修改 [`package.json`](package.json) 版本号
-2. 重新打包生成新的 `.tgz`，或者从 GitHub Releases 下载新版 `.tgz`
+2. 从 GitHub Releases 下载新版 `.zip`
 3. 完全退出 Tabby
-4. 在插件目录重新执行安装命令
+4. 用新版解压后的 `tabby-ssh-proxy-selector` 目录覆盖旧安装目录
 5. 重新打开 Tabby
 6. 检查设置页是否正常出现
 

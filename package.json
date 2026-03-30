@@ -1,6 +1,6 @@
 {
   "name": "tabby-ssh-proxy-selector",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Tabby plugin: use internal proxy socket for selected SSH profiles",
   "module": "index.ts",
   "main": "dist/index.js",
