@@ -227,13 +227,10 @@ npm pack
 
 ### 7.1 直接解压安装（唯一推荐方式）
 
-如果你是从 GitHub 的 **Releases** 页面下载工作流生成的发布包，请直接按下面步骤安装。
-
 1. 下载类似下面名称的发布包：
    - `tabby-ssh-proxy-selector-0.0.2.zip`
 2. 使用 7-Zip、WinRAR 或系统自带解压功能，直接解压这个 `.zip`
-3. 解压后，你会得到一个名为 `tabby-ssh-proxy-selector` 的文件夹
-4. 把该文件夹移动到 Tabby 插件目录下的 `node_modules` 目录
+3. 解压后，将里面名为 `tabby-ssh-proxy-selector`（里面有dist目录、package.json、README.md） 的文件夹移动到 Tabby 插件目录下的 `node_modules` 目录
 
 目标路径：
 
