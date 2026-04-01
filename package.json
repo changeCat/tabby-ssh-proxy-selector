@@ -24,6 +24,9 @@
   "dependencies": {
     "socks": "^2.8.7"
   },
+  "bundleDependencies": [
+    "socks"
+  ],
   "devDependencies": {
     "@types/node": "^22.13.14",
     "typescript": "4.9.5"
