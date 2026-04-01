@@ -74,6 +74,7 @@ export class ProxyManagerSettingsComponent {
     groupedSSHProfiles: Array<{ name: string, profiles: any[] }> = []
     selectedProfileIds = new Set<string>()
     saveSuccessVisible = false
+    private readonly defaultGroupName = '未分组'
     private saveSuccessTimer: ReturnType<typeof setTimeout> | null = null
 
     constructor (
@@ -108,9 +109,10 @@ export class ProxyManagerSettingsComponent {
 
     groupProfiles (profiles: any[]): Array<{ name: string, profiles: any[] }> {
         const groups = new Map<string, any[]>()
+        const groupNameLookup = this.buildGroupNameLookup(profiles)
 
         for (const profile of profiles) {
-            const groupName = this.getProfileGroupName(profile)
+            const groupName = this.getProfileGroupName(profile, groupNameLookup)
             const existingProfiles = groups.get(groupName)
 
             if (existingProfiles) {
@@ -127,20 +129,153 @@ export class ProxyManagerSettingsComponent {
         }))
     }
 
-    getProfileGroupName (profile: any): string {
-        const rawGroup = profile.group ?? profile.grouping ?? profile.groupPath ?? profile.options?.group
+    getProfileGroupName (profile: any, groupNameLookup: Map<string, string>): string {
+        const candidatePaths = [
+            profile.groupPath,
+            profile.groupingPath,
+            profile.grouping,
+            profile.group,
+            profile.options?.groupPath,
+            profile.options?.groupingPath,
+            profile.options?.grouping,
+            profile.options?.group,
+        ]
 
-        if (Array.isArray(rawGroup)) {
-            const path = rawGroup.filter(Boolean).join(' / ').trim()
-            return path || '未分组'
+        for (const candidate of candidatePaths) {
+            const resolvedPath = this.resolveGroupPath(candidate, groupNameLookup)
+            if (resolvedPath) {
+                return resolvedPath
+            }
         }
 
-        if (typeof rawGroup === 'string') {
-            const groupName = rawGroup.trim()
-            return groupName || '未分组'
+        return this.defaultGroupName
+    }
+
+    buildGroupNameLookup (profiles: any[]): Map<string, string> {
+        const lookup = new Map<string, string>()
+        const sources = [
+            this.config.store?.profileGroups,
+            this.config.store?.groups,
+            this.config.store?.profiles,
+            profiles,
+        ]
+
+        for (const source of sources) {
+            this.collectGroupNames(source, lookup)
         }
 
-        return '未分组'
+        return lookup
+    }
+
+    collectGroupNames (source: any, lookup: Map<string, string>, seen = new WeakSet<object>()): void {
+        if (!source) {
+            return
+        }
+
+        if (Array.isArray(source)) {
+            for (const item of source) {
+                this.collectGroupNames(item, lookup, seen)
+            }
+            return
+        }
+
+        if (typeof source !== 'object') {
+            return
+        }
+
+        if (seen.has(source)) {
+            return
+        }
+        seen.add(source)
+
+        const groupIdCandidates = [source.id, source.group, source.groupId, source.uid, source.uuid]
+        const groupNameCandidates = [source.name, source.title, source.label, source.displayName]
+        const resolvedName = groupNameCandidates
+            .map(value => this.normalizeGroupPart(value, lookup))
+            .find(Boolean)
+
+        if (resolvedName) {
+            for (const candidate of groupIdCandidates) {
+                const normalizedId = this.normalizeGroupKey(candidate)
+                if (normalizedId) {
+                    lookup.set(normalizedId, resolvedName)
+                }
+            }
+        }
+
+        for (const value of Object.values(source)) {
+            this.collectGroupNames(value, lookup, seen)
+        }
+    }
+
+    resolveGroupPath (value: any, groupNameLookup: Map<string, string>): string | null {
+        if (Array.isArray(value)) {
+            const pathParts = value
+                .map(item => this.normalizeGroupPart(item, groupNameLookup))
+                .filter((item): item is string => !!item)
+
+            if (pathParts.length) {
+                return pathParts.join(' / ')
+            }
+
+            return null
+        }
+
+        return this.normalizeGroupPart(value, groupNameLookup)
+    }
+
+    normalizeGroupPart (value: any, groupNameLookup: Map<string, string>): string | null {
+        if (!value) {
+            return null
+        }
+
+        if (typeof value === 'string') {
+            const normalizedValue = value.trim()
+            if (!normalizedValue) {
+                return null
+            }
+
+            return groupNameLookup.get(normalizedValue) ?? (this.looksLikeOpaqueGroupId(normalizedValue) ? null : normalizedValue)
+        }
+
+        if (typeof value !== 'object') {
+            return null
+        }
+
+        const directName = [value.name, value.title, value.label, value.displayName]
+            .map(candidate => this.normalizeGroupPart(candidate, groupNameLookup))
+            .find(Boolean)
+        if (directName) {
+            return directName
+        }
+
+        const path = this.resolveGroupPath(value.path ?? value.groupPath ?? value.groupingPath ?? value.groups, groupNameLookup)
+        if (path) {
+            return path
+        }
+
+        const keyCandidates = [value.id, value.group, value.groupId, value.uid, value.uuid]
+        for (const candidate of keyCandidates) {
+            const normalizedKey = this.normalizeGroupKey(candidate)
+            if (!normalizedKey) {
+                continue
+            }
+
+            const matchedName = groupNameLookup.get(normalizedKey)
+            if (matchedName) {
+                return matchedName
+            }
+        }
+
+        return null
+    }
+
+    normalizeGroupKey (value: any): string | null {
+        return typeof value === 'string' ? value.trim() || null : null
+    }
+
+    looksLikeOpaqueGroupId (value: string): boolean {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
     }
 
     clearSaveSuccessTimer (): void {
