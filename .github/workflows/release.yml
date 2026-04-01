@@ -154,7 +154,10 @@ jobs:
 
           Compress-Archive -Path $finalModuleDir -DestinationPath $zipFile
 
-          "package_files=$packageFile`n$zipFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "package_files<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $packageFile | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $zipFile | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Created release archive: $zipFile"
           Write-Host "Created npm package: $packageFile"
 
