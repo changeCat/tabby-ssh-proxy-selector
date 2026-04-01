@@ -109,7 +109,7 @@ export class ProxyManagerSettingsComponent {
 
     groupProfiles (profiles: any[]): Array<{ name: string, profiles: any[] }> {
         const groups = new Map<string, any[]>()
-        const groupNameLookup = this.buildGroupNameLookup(profiles)
+        const groupNameLookup = this.buildGroupNameLookup()
 
         for (const profile of profiles) {
             const groupName = this.getProfileGroupName(profile, groupNameLookup)
@@ -130,110 +130,38 @@ export class ProxyManagerSettingsComponent {
     }
 
     getProfileGroupName (profile: any, groupNameLookup: Map<string, string>): string {
-        const candidatePaths = [
-            profile.groupPath,
-            profile.groupingPath,
-            profile.grouping,
-            profile.group,
-            profile.options?.groupPath,
-            profile.options?.groupingPath,
-            profile.options?.grouping,
-            profile.options?.group,
-        ]
-
-        for (const candidate of candidatePaths) {
-            const resolvedPath = this.resolveGroupPath(candidate, groupNameLookup)
-            if (resolvedPath) {
-                return resolvedPath
-            }
-        }
-
-        return this.defaultGroupName
+        const rawGroup = profile.group ?? profile.grouping ?? profile.groupPath ?? profile.options?.group
+        const resolved = this.resolveGroupValue(rawGroup, groupNameLookup)
+        return resolved || this.defaultGroupName
     }
 
-    buildGroupNameLookup (profiles: any[]): Map<string, string> {
+    buildGroupNameLookup (): Map<string, string> {
         const lookup = new Map<string, string>()
-        const sources = [
-            this.config.store?.profileGroups,
-            this.config.store?.groups,
+        const groups = [
+            ...(Array.isArray(this.config.store?.groups) ? this.config.store.groups : []),
+            ...(Array.isArray(this.config.store?.profileGroups) ? this.config.store.profileGroups : []),
         ]
 
-        for (const source of sources) {
-            this.collectGroupNames(source, lookup)
-        }
-
-        for (const profile of profiles) {
-            this.collectGroupNames(profile.grouping ?? profile.groupPath ?? profile.group ?? profile.options?.grouping ?? profile.options?.groupPath ?? profile.options?.group, lookup)
+        for (const group of groups) {
+            const id = typeof group?.id === 'string' ? group.id.trim() : ''
+            const name = typeof group?.name === 'string' ? group.name.trim() : ''
+            if (id && name) {
+                lookup.set(id, name)
+            }
         }
 
         return lookup
     }
 
-    collectGroupNames (source: any, lookup: Map<string, string>, seen = new WeakSet<object>()): void {
-        if (!source) {
-            return
-        }
-
-        if (Array.isArray(source)) {
-            for (const item of source) {
-                this.collectGroupNames(item, lookup, seen)
-            }
-            return
-        }
-
-        if (typeof source !== 'object') {
-            return
-        }
-
-        if (seen.has(source)) {
-            return
-        }
-        seen.add(source)
-
-        const isLikelyProfile = typeof source.type === 'string' || !!source.options
-        const isLikelyGroup = !!source.groupId || !!source.groupName || !!source.groups || !!source.children || !!source.items || /group/i.test(String(source.type ?? ''))
-
-        if (isLikelyGroup && !isLikelyProfile) {
-            const groupIdCandidates = [source.id, source.group, source.groupId, source.uid, source.uuid]
-            const groupNameCandidates = [source.groupName, source.name, source.title, source.label, source.displayName]
-            const resolvedName = groupNameCandidates
-                .map(value => this.normalizeGroupPart(value, lookup))
-                .find(Boolean)
-
-            if (resolvedName) {
-                for (const candidate of groupIdCandidates) {
-                    const normalizedId = this.normalizeGroupKey(candidate)
-                    if (normalizedId) {
-                        lookup.set(normalizedId, resolvedName)
-                    }
-                }
-            }
-        }
-
-        for (const value of Object.values(source)) {
-            this.collectGroupNames(value, lookup, seen)
-        }
-    }
-
-    resolveGroupPath (value: any, groupNameLookup: Map<string, string>): string | null {
+    resolveGroupValue (value: any, groupNameLookup: Map<string, string>): string | null {
         if (Array.isArray(value)) {
-            const pathParts = value
-                .map(item => this.normalizeGroupPart(item, groupNameLookup))
+            const path = value
+                .map(item => this.resolveGroupValue(item, groupNameLookup))
                 .filter((item): item is string => !!item)
+                .join(' / ')
+                .trim()
 
-            if (pathParts.length) {
-                return pathParts.join(' / ')
-            }
-
-            return null
-        }
-
-        return this.normalizeGroupPart(value, groupNameLookup)
-    }
-
-    normalizeGroupPart (value: any, groupNameLookup: Map<string, string>): string | null {
-        if (!value) {
-            return null
+            return path || null
         }
 
         if (typeof value === 'string') {
@@ -245,40 +173,26 @@ export class ProxyManagerSettingsComponent {
             return groupNameLookup.get(normalizedValue) ?? (this.looksLikeOpaqueGroupId(normalizedValue) ? null : normalizedValue)
         }
 
-        if (typeof value !== 'object') {
+        if (!value || typeof value !== 'object') {
             return null
         }
 
-        const directName = [value.name, value.title, value.label, value.displayName]
-            .map(candidate => this.normalizeGroupPart(candidate, groupNameLookup))
-            .find(Boolean)
+        const directName = typeof value.name === 'string' ? value.name.trim() : ''
         if (directName) {
             return directName
         }
 
-        const path = this.resolveGroupPath(value.path ?? value.groupPath ?? value.groupingPath ?? value.groups, groupNameLookup)
-        if (path) {
-            return path
+        const nestedPath = this.resolveGroupValue(value.path ?? value.groupPath ?? value.groupingPath, groupNameLookup)
+        if (nestedPath) {
+            return nestedPath
         }
 
-        const keyCandidates = [value.id, value.group, value.groupId, value.uid, value.uuid]
-        for (const candidate of keyCandidates) {
-            const normalizedKey = this.normalizeGroupKey(candidate)
-            if (!normalizedKey) {
-                continue
-            }
-
-            const matchedName = groupNameLookup.get(normalizedKey)
-            if (matchedName) {
-                return matchedName
-            }
+        const id = typeof value.id === 'string' ? value.id.trim() : ''
+        if (id) {
+            return groupNameLookup.get(id) ?? null
         }
 
         return null
-    }
-
-    normalizeGroupKey (value: any): string | null {
-        return typeof value === 'string' ? value.trim() || null : null
     }
 
     looksLikeOpaqueGroupId (value: string): boolean {
