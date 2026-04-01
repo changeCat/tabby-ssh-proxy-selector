@@ -1,6 +1,0 @@
-feat: add grouped SSH profile UI and release automation
-
-- add save success feedback in settings UI
-- group SSH profiles by original config group when listing entries
-- fix extracted package installation by pointing module to dist/index.js
-- bump version to 0.0.3 and add auto release on push when package version exceeds latest tag
