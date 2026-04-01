@@ -182,11 +182,19 @@ jobs:
               core.info(`Tag ${tag} 已存在，跳过创建`)
             }
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
           PACKAGE_FILE: ${{ steps.pack.outputs.package_file }}
         run: |
+          gh release view $env:RELEASE_TAG *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:RELEASE_TAG 已存在，覆盖附件"
+            gh release upload $env:RELEASE_TAG $env:PACKAGE_FILE --clobber
+            exit $LASTEXITCODE
+          }
+
           gh release create $env:RELEASE_TAG $env:PACKAGE_FILE --generate-notes
