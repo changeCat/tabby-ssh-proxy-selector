@@ -21,6 +21,9 @@
     "proxy",
     "proxycommand"
   ],
+  "author": {
+    "name": "wangx"
+  },
   "dependencies": {
     "socks": "^2.8.7"
   },

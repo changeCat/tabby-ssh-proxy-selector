@@ -231,8 +231,8 @@ npm pack
 3. 二选一：
    - 等待推送后由 [`release-package`](.github/workflows/release.yml) 自动检查并发布
    - 或手动运行 [`release-package`](.github/workflows/release.yml)
-4. 等待 GitHub Actions 自动创建 Release 并上传 `.zip`
-5. 下载 GitHub Release 附件并按下文的解压方式安装
+4. 等待 GitHub Actions 自动创建 Release，并同时上传 `.tgz` 与 `.zip`
+5. 优先下载 GitHub Release 附件里的 `.tgz`，按下文“双重解压”方式安装
 
 ---
 
@@ -240,12 +240,13 @@ npm pack
 
 下面是 Windows 下最容易成功的安装方式。
 
-### 7.1 直接解压安装（唯一推荐方式）
+### 7.1 推荐安装方式：解压 `.tgz`
 
-1. 下载类似下面名称的发布包：
-   - `tabby-ssh-proxy-selector-0.0.2.zip`
-2. 使用 7-Zip、WinRAR 或系统自带解压功能，直接解压这个 `.zip`
-3. 解压后，将里面名为 `tabby-ssh-proxy-selector`（里面有dist目录、package.json、README.md） 的文件夹移动到 Tabby 插件目录下的 `node_modules` 目录
+1. 从 GitHub Releases 下载类似 [`tabby-ssh-proxy-selector-0.0.4.tgz`](package.json:3) 的发布包
+2. 第一次解压 `.tgz`，会得到一个 `package` 目录或同名中间目录
+3. 如果第一次解压后仍然是压缩内容，再解压一次，直到看到名为 `package` 的目录
+4. 将 `package` 目录重命名为 `tabby-ssh-proxy-selector`
+5. 把重命名后的目录移动到 Tabby 插件目录下的 `node_modules` 目录
 
 目标路径：
 
@@ -255,9 +256,13 @@ npm pack
 
 - `C:/Users/你的用户名/AppData/Roaming/tabby/plugins/node_modules/tabby-ssh-proxy-selector`
 
-这种发布包已经在工作流里处理好了，不需要再对里面的内容进行第二次解压。
+最终目录中应能直接看到 [`package.json`](package.json) 、`dist` 目录，以及可能存在的 `node_modules` 目录。
 
-### 7.2 重启 Tabby
+### 7.2 备用方式：解压 `.zip`
+
+如果你使用的是 Release 里的 `.zip` 包，也可以直接解压后把其中的 `tabby-ssh-proxy-selector` 目录移动到 [`node_modules`](README.md:252) 下。
+
+### 7.3 重启 Tabby
 
 安装完成后：
 
