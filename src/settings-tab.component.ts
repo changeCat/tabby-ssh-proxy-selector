@@ -156,12 +156,14 @@ export class ProxyManagerSettingsComponent {
         const sources = [
             this.config.store?.profileGroups,
             this.config.store?.groups,
-            this.config.store?.profiles,
-            profiles,
         ]
 
         for (const source of sources) {
             this.collectGroupNames(source, lookup)
+        }
+
+        for (const profile of profiles) {
+            this.collectGroupNames(profile.grouping ?? profile.groupPath ?? profile.group ?? profile.options?.grouping ?? profile.options?.groupPath ?? profile.options?.group, lookup)
         }
 
         return lookup
@@ -188,17 +190,22 @@ export class ProxyManagerSettingsComponent {
         }
         seen.add(source)
 
-        const groupIdCandidates = [source.id, source.group, source.groupId, source.uid, source.uuid]
-        const groupNameCandidates = [source.name, source.title, source.label, source.displayName]
-        const resolvedName = groupNameCandidates
-            .map(value => this.normalizeGroupPart(value, lookup))
-            .find(Boolean)
+        const isLikelyProfile = typeof source.type === 'string' || !!source.options
+        const isLikelyGroup = !!source.groupId || !!source.groupName || !!source.groups || !!source.children || !!source.items || /group/i.test(String(source.type ?? ''))
 
-        if (resolvedName) {
-            for (const candidate of groupIdCandidates) {
-                const normalizedId = this.normalizeGroupKey(candidate)
-                if (normalizedId) {
-                    lookup.set(normalizedId, resolvedName)
+        if (isLikelyGroup && !isLikelyProfile) {
+            const groupIdCandidates = [source.id, source.group, source.groupId, source.uid, source.uuid]
+            const groupNameCandidates = [source.groupName, source.name, source.title, source.label, source.displayName]
+            const resolvedName = groupNameCandidates
+                .map(value => this.normalizeGroupPart(value, lookup))
+                .find(Boolean)
+
+            if (resolvedName) {
+                for (const candidate of groupIdCandidates) {
+                    const normalizedId = this.normalizeGroupKey(candidate)
+                    if (normalizedId) {
+                        lookup.set(normalizedId, resolvedName)
+                    }
                 }
             }
         }
