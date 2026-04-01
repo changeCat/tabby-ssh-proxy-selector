@@ -170,16 +170,30 @@ npm pack
 
 ### 5.5 GitHub 自动构建并发布
 
-如果项目已经托管到 GitHub，可以直接用 [`release-package`](.github/workflows/release.yml) 工作流在 GitHub 页面上手动构建和发布。
+项目现在支持两种发布方式，都由 [`release-package`](.github/workflows/release.yml) 完成。
 
-触发方式：
+#### 方式一：手动触发
 
 1. 先修改 [`package.json`](package.json) 里的 `version` 并推送到 GitHub
 2. 打开仓库的 **Actions** 页面
 3. 选择 [`release-package`](.github/workflows/release.yml)
 4. 点击 **Run workflow**
-5. 在输入框里填写版本 tag，例如 `v0.0.2`
+5. 在输入框里填写版本 tag，例如 `v0.0.3`
 6. 点击运行
+
+#### 方式二：推送后自动触发
+
+当代码推送到 `main` 或 `master` 分支时，GitHub Actions 也会自动检查 [`package.json`](package.json) 中的版本号：
+
+- 如果当前版本 **大于** 仓库里最新的 release tag 版本，例如上一版是 `v0.0.2`，本次推送改成 `0.0.3`
+- 那么 [`release-package`](.github/workflows/release.yml) 会自动继续执行打包和发布
+- 如果版本号没有增加，或者小于等于当前最新 release tag，则不会自动发布
+
+也就是说，自动触发的判断基准是：
+
+- 当前 [`package.json`](package.json) 的 `version`
+- 与仓库里最新的 `vX.Y.Z` tag 对比
+- 只有“新版本更大”时才自动发布
 
 触发后，GitHub Actions 会自动执行：
 
@@ -189,11 +203,12 @@ npm pack
 4. 把生成的 npm `.tgz` 包解开为插件目录
 5. 将目录重命名为 `tabby-ssh-proxy-selector`
 6. 再打成一个可直接解压的 `.zip` 发布包
-7. 在 GitHub Releases 上传该 `.zip` 文件
+7. 自动创建对应 tag
+8. 在 GitHub Releases 上传该 `.zip` 文件
 
 发布完成后，你可以在仓库的 **Releases** 页面看到对应版本，例如：
 
-- `v0.0.2`
+- `v0.0.3`
 
 工作流会自动创建对应 tag、构建可直接解压安装的 `.zip` 发布包，并在 GitHub Releases 中生成对应版本发布页。
 
@@ -213,11 +228,11 @@ npm pack
 
 1. 修改 [`package.json`](package.json) 的 `version`
 2. 提交并推送代码
-3. 打开 GitHub 仓库的 **Actions** 页面
-4. 手动运行 [`release-package`](.github/workflows/release.yml)
-5. 输入版本 tag，例如 `v0.0.2`
-6. 等待 GitHub Actions 自动创建 Release 并上传 `.zip`
-7. 下载 GitHub Release 附件并按下文的解压方式安装
+3. 二选一：
+   - 等待推送后由 [`release-package`](.github/workflows/release.yml) 自动检查并发布
+   - 或手动运行 [`release-package`](.github/workflows/release.yml)
+4. 等待 GitHub Actions 自动创建 Release 并上传 `.zip`
+5. 下载 GitHub Release 附件并按下文的解压方式安装
 
 ---
 
