@@ -22,7 +22,7 @@
     "proxycommand"
   ],
   "author": {
-    "name": "wangx"
+    "name": "ppcat"
   },
   "dependencies": {
     "socks": "^2.8.7"
