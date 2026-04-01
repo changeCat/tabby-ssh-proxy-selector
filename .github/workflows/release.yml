@@ -10,6 +10,8 @@ on:
     branches:
       - main
       - master
+    paths:
+      - package.json
 
 permissions:
   contents: write
