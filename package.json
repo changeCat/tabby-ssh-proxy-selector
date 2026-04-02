@@ -1,6 +1,6 @@
 {
   "name": "tabby-ssh-proxy-selector",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Tabby plugin: use internal proxy socket for selected SSH profiles",
   "module": "dist/index.js",
   "main": "dist/index.js",
@@ -12,7 +12,8 @@
   "scripts": {
     "build": "call \"%ProgramFiles%\\nodejs\\node.exe\" .\\node_modules\\typescript\\bin\\tsc -p tsconfig.json",
     "prepack": "call \"%ProgramFiles%\\nodejs\\node.exe\" .\\node_modules\\typescript\\bin\\tsc -p tsconfig.json",
-    "pack": "call \"%ProgramFiles%\\nodejs\\node.exe\" \"%ProgramFiles%\\nodejs\\node_modules\\npm\\bin\\npm-cli.js\" pack"
+    "pack": "call \"%ProgramFiles%\\nodejs\\node_modules\\npm\\bin\\npm-cli.js\" pack",
+    "pack:release": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\pack-release.ps1"
   },
   "keywords": [
     "tabby",

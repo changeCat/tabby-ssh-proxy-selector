@@ -6,10 +6,10 @@ import { ProxyProtocol } from './types'
 @Component({
     selector: 'proxy-manager-settings',
     template: `
-        <div class="d-flex flex-column h-100 p-3">
+        <div class="settings-root d-flex flex-column h-100 p-3" style="width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box;">
             <h3 class="mb-3">SSH 代理批量管理</h3>
 
-            <div class="row g-3 mb-3">
+            <div class="proxy-form-row row g-3 mb-3 mx-0">
                 <div class="col-md-4">
                     <label>代理协议</label>
                     <select class="form-control" [(ngModel)]="protocol">
@@ -37,11 +37,26 @@ import { ProxyProtocol } from './types'
 
             <div class="form-group mb-3">
                 <label>选择要使用代理的 SSH 连接</label>
-                <div class="border rounded" style="max-height: 420px; overflow-y: auto;">
+                <div class="profile-list-shell border rounded">
+                    <div class="profile-list-container">
                     <ng-container *ngFor="let group of groupedSSHProfiles">
-                        <div class="px-3 py-2 bg-light border-bottom fw-bold">{{ group.name }}</div>
-                        <div class="list-group list-group-flush">
-                            <label class="list-group-item d-flex align-items-center" *ngFor="let profile of group.profiles">
+                        <div class="group-header px-3 py-2 bg-light border-bottom d-flex align-items-center justify-content-between gap-2">
+                            <span class="fw-bold">{{ group.name }}</span>
+                            <label class="d-inline-flex align-items-center gap-2 mb-0 small text-muted">
+                                <input
+                                    type="checkbox"
+                                    [checked]="isGroupFullySelected(group.profiles)"
+                                    [indeterminate]="isGroupPartiallySelected(group.profiles)"
+                                    (change)="toggleGroup(group.profiles)">
+                                <span>全选本组</span>
+                            </label>
+                        </div>
+                        <div class="list-group list-group-flush profile-group-list">
+                            <label
+                                class="list-group-item d-flex align-items-center profile-item"
+                                title="{{ profile.name }}"
+                                *ngFor="let profile of group.profiles"
+                                [class.profile-item-selected]="selectedProfileIds.has(profile.id)">
                                 <input
                                     type="checkbox"
                                     class="me-2"
@@ -51,6 +66,7 @@ import { ProxyProtocol } from './types'
                             </label>
                         </div>
                     </ng-container>
+                    </div>
                 </div>
                 <div *ngIf="sshProfiles.length === 0" class="text-muted mt-2">
                     没有找到任何 SSH 配置。
@@ -65,6 +81,133 @@ import { ProxyProtocol } from './types'
             </div>
         </div>
     `,
+    styles: [`
+        :host {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        :host *,
+        :host *::before,
+        :host *::after {
+            box-sizing: border-box;
+        }
+
+        .settings-root {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .proxy-form-row {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .proxy-form-row > [class*='col-'] {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+
+        .form-group,
+        .profile-list-shell,
+        .profile-list-container,
+        .list-group,
+        .profile-group-list,
+        .group-header,
+        .profile-item {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        .group-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            row-gap: 0.5rem;
+            overflow: hidden;
+        }
+
+        .group-header > span,
+        .group-header > label {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .profile-list-shell {
+            overflow: hidden;
+        }
+
+        .profile-list-container {
+            display: block;
+            max-height: 420px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior-x: none;
+            scrollbar-width: thin;
+            padding-bottom: 1px;
+        }
+
+        .profile-list-container::-webkit-scrollbar:horizontal {
+            height: 0 !important;
+            display: none;
+        }
+
+        .profile-group-list {
+            overflow-x: hidden;
+        }
+
+        .profile-item {
+            position: relative;
+            display: flex;
+            cursor: pointer;
+            min-width: 0;
+            overflow: hidden;
+            transition: background-color 0.18s ease;
+        }
+
+        .profile-item span {
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .profile-item:hover {
+            background-color: rgba(13, 110, 253, 0.18);
+        }
+
+        .profile-item::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: inset 3px 0 0 rgba(13, 110, 253, 0.95);
+            transition: opacity 0.18s ease;
+        }
+
+        .profile-item:hover::after {
+            opacity: 1;
+        }
+
+        .profile-item-selected {
+            background-color: rgba(13, 110, 253, 0.08);
+        }
+
+        .profile-item-selected:hover {
+            background-color: rgba(13, 110, 253, 0.2);
+        }
+    `],
 })
 export class ProxyManagerSettingsComponent {
     protocol: ProxyProtocol = 'socks5'
@@ -213,6 +356,32 @@ export class ProxyManagerSettingsComponent {
         }
 
         this.selectedProfileIds.add(id)
+    }
+
+    isGroupFullySelected (profiles: any[]): boolean {
+        return profiles.length > 0 && profiles.every(profile => this.selectedProfileIds.has(profile.id))
+    }
+
+    isGroupPartiallySelected (profiles: any[]): boolean {
+        if (profiles.length === 0) {
+            return false
+        }
+
+        const selectedCount = profiles.filter(profile => this.selectedProfileIds.has(profile.id)).length
+        return selectedCount > 0 && selectedCount < profiles.length
+    }
+
+    toggleGroup (profiles: any[]): void {
+        if (this.isGroupFullySelected(profiles)) {
+            for (const profile of profiles) {
+                this.selectedProfileIds.delete(profile.id)
+            }
+            return
+        }
+
+        for (const profile of profiles) {
+            this.selectedProfileIds.add(profile.id)
+        }
     }
 
     save (): void {
