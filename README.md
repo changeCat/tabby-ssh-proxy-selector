@@ -4,7 +4,7 @@
 
 ## macOS 与 Windows 安装
 
-从 **0.0.9** 起，macOS（Apple Silicon 和 Intel）与 Windows 共用一个 ZIP。安装和升级使用相同步骤，插件运行依赖已随包提供，无需另装 Node.js 或管理员权限。
+macOS（Apple Silicon 和 Intel）与 Windows 共用一个 ZIP。安装和升级使用相同步骤，插件运行依赖已随包提供，无需另装 Node.js 或管理员权限。
 
 1. 完全退出 Tabby（Mac 上按 `⌘Q`），下载并完整解压发布附件 `tabby-ssh-proxy-selector-版本号.zip`。[GitHub Releases](https://github.com/changeCat/tabby-ssh-proxy-selector/releases)
 2. **macOS** 双击 `install.command`。**Windows** 双击 `install.cmd`。
@@ -54,6 +54,13 @@ npm run build
 - `npm run pack:release` 可在 macOS 或 Windows 上执行，自动编译并在项目根目录生成同一个双平台安装 ZIP。
 - 构建后运行 `npm test` 可验证路由迁移、并发临时连接、直连隔离和 HTTP CONNECT。打包后运行 `node tests/install-release.cjs` 可在临时用户目录验证当前系统的安装、升级和日志路径。
 - `npm pack` 生成带运行依赖的 npm 包，也会自动编译。
-- 发布新版本时同步更新 `package.json` 和 `package-lock.json` 的版本号。推送到 `main` 或 `master` 后，工作流会在版本高于已有版本标签时构建并上传 ZIP。也可手动触发。[发布工作流](.github/workflows/release.yml)
+
+## 发布版本
+
+本地修改、提交和试打包都无需改版本号。将一个或多个提交一起推送到 `main` 或 `master` 时，GitHub Actions 为这次推送计算一个补丁版本。例如，最高正式标签为 `v0.1.0` 时，下一次推送使用 `v0.1.1`。普通功能分支不触发发布。
+
+版本号只写入 CI 工作目录的 npm 清单。macOS 和 Windows 安装验证都通过后，工作流才给该提交打标签并发布同版本 ZIP。重复运行同一个已打标签的提交会复用原版本。正式版本以 Git 标签和 Release 为准，本地试打包沿用源码中的版本号。
+
+需要升级次版本或主版本时，可手动运行工作流并指定更高的标签，例如 `v0.2.0`。[发布工作流](.github/workflows/release.yml)
 
 设置界面和分组选择逻辑在 [settings-tab.component.ts](src/settings-tab.component.ts)，默认配置在 [config.ts](src/config.ts)。适配 Tabby 的 SSH 连接入口时，参见 [ssh-proxy.service.ts](src/ssh-proxy.service.ts)；SOCKS5 和 HTTP CONNECT 的握手实现在 [proxy-socket.ts](src/proxy-socket.ts)。
