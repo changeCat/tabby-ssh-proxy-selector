@@ -13,27 +13,11 @@ function addFile (filename, entry, mode = 0o100644) {
     files[entry] = [fs.readFileSync(filename), { os: 3, attrs: mode << 16 }]
 }
 
-function addDirectory (directory, prefix) {
-    for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
-        const filename = path.join(directory, item.name)
-        const entry = `${prefix}/${item.name}`
-        if (item.isDirectory()) {
-            addDirectory(filename, entry)
-        } else if (item.isFile()) {
-            addFile(filename, entry)
-        } else {
-            throw new Error(`Unsupported archive entry: ${filename}`)
-        }
-    }
-}
-
 try {
     execFileSync(process.execPath, [process.env.npm_execpath, 'pack', '--pack-destination', stage], {
         cwd: repo, stdio: 'inherit',
     })
-    const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32', 'tar.exe') : 'tar'
-    execFileSync(tar, ['-xzf', path.join(stage, archive + '.tgz'), '-C', stage])
-    addDirectory(path.join(stage, 'package'), name)
+    addFile(path.join(stage, archive + '.tgz'), name + '.tgz')
     addFile(path.join(__dirname, 'install.cmd'), 'install.cmd')
     addFile(path.join(__dirname, 'install.command'), 'install.command', 0o100755)
 

@@ -10,16 +10,17 @@ macOS（Apple Silicon 和 Intel）与 Windows 共用一个 ZIP。安装和升级
 2. **macOS** 双击 `install.command`。**Windows** 双击 `install.cmd`。
 3. 重新打开 Tabby，进入 **设置 → SSH 代理管理**，即可选择要使用代理的连接。
 
-### 手动安装或卸载
+### 与 Sync Config 等插件共存
 
-如果 macOS 提示无法打开安装脚本，也可以直接用 Finder 安装。按 `⌘⇧G` 前往下表中的目录，将解压出的整个 `tabby-ssh-proxy-selector` 文件夹放入其中。首次使用时可自行创建 `plugins/node_modules`。便携版或自定义数据目录使用对应的 `plugins/node_modules`。
+ZIP 中的 `tabby-ssh-proxy-selector.tgz` 是安装脚本使用的离线包。安装器会把它缓存到 Tabby 数据目录的 `plugins/.ssh-proxy-packages/`，并在 `plugins/package.json` 中登记本插件，同时保留已有插件。之后在 Tabby 中安装或更新 Sync Config 时，插件管理器可以从缓存恢复代理插件。
 
-| 系统 | 默认插件目录 |
-| --- | --- |
-| macOS | `~/Library/Application Support/tabby/plugins/node_modules/` |
-| Windows | `%APPDATA%\tabby\plugins\node_modules\` |
+如果此前遇到两个插件交替消失，完全退出 Tabby，用本版安装脚本重装一次代理插件。重开后，如果 Sync Config 仍缺失，再从 Tabby 的插件管理器安装它。如果 macOS 无法直接打开脚本，可在终端输入 `sh `，将 `install.command` 拖入终端，然后回车。
 
-安装后，插件文件夹内应直接包含 `package.json`、`dist/index.js` 和 `node_modules`。卸载时完全退出 Tabby，仅删除该插件文件夹即可。SSH 连接配置保存在 Tabby 中。[Tabby 数据目录说明](https://github.com/Eugeny/tabby/wiki/Config-file)
+### 自定义目录与卸载
+
+默认插件目录在 Windows 上是 `%APPDATA%\tabby\plugins`，macOS 上是 `~/Library/Application Support/tabby/plugins`。便携版或自定义目录用户可将 `.tgz` 放在对应 `plugins` 目录下，在该目录运行 `npm install --save ./tabby-ssh-proxy-selector.tgz`，并保留该文件供后续插件安装使用。
+
+手动卸载时，完全退出 Tabby，在 `plugins/package.json` 的 `dependencies` 中移除 `tabby-ssh-proxy-selector` 这一项，删除 `plugins/node_modules/tabby-ssh-proxy-selector` 和本插件的缓存目录 `plugins/.ssh-proxy-packages`。SSH 连接配置保存在 Tabby 中。[Tabby 数据目录说明](https://github.com/Eugeny/tabby/wiki/Config-file)
 
 ## 选择连接线路
 

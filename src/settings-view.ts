@@ -116,10 +116,11 @@ export const template: string = `
 
 export const styles: string = `
 :host { display:block; color:inherit; }
+:host-context(.tab-pane) { margin-inline:-12px; }
 .manager {
   --line:rgba(193,211,226,.30); --tint:rgba(157,203,229,.12); --secondary:#e0e8ee;
   color:#f4f7fa; background:transparent; text-shadow:0 1px 3px rgba(12,18,24,.9);
-  max-width:1020px; margin:0 auto; padding:clamp(14px,3vw,32px);
+  max-width:1440px; margin:0 auto; padding-block:clamp(14px,3vw,32px);
 }
 .manager * { box-sizing:border-box; }
 fieldset { border:0; padding:0; min-width:0; margin:0; }
@@ -130,7 +131,7 @@ h2 { font-size:1.6rem; letter-spacing:.015em; font-weight:650; } h3 { font-size:
 .panel { border:1px solid var(--line); border-radius:8px; padding:14px 16px; background:rgba(32,44,56,.20); }
 .panel + .panel { margin-top:12px; }
 .section-title { margin-bottom:14px; }
-.preset-panel { --preset-label-size:.71rem; --preset-control-size:.73rem; padding-block:10px; container-type:inline-size; }
+.preset-panel { --preset-label-size:.82rem; --preset-control-size:.88rem; padding-block:10px; container-type:inline-size; }
 .preset-heading { gap:6px 12px; margin:0 0 6px; }
 .preset-heading h3 { font-size:1.04rem; }
 .add-preset { margin-inline-start:auto; }
@@ -146,7 +147,7 @@ button { cursor:pointer; } button:disabled { cursor:default; }
 .preset-row.editing .preset-summary { border-radius:5px 5px 0 0; border-bottom:1px solid var(--line); background:rgba(83,157,193,.34); }
 .preset-summary { display:grid; grid-template-columns:10px minmax(0,1fr) 7em minmax(0,1fr); align-items:center; gap:6px; width:100%; min-height:29px; padding:3px 6px; border:0; border-radius:4px; text-align:start; }
 .preset-summary strong,.preset-summary small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.preset-summary { font-size:.80rem; padding-inline-start:9px; } .preset-summary small { font-size:var(--preset-label-size); }
+.preset-summary { font-size:.94rem; padding-inline-start:9px; } .preset-summary small { font-size:var(--preset-label-size); }
 .preset-row .editor { padding:0 6px 8px 9px; }
 .editor { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(100px,1fr) minmax(0,1.4fr) minmax(58px,.65fr) auto; align-items:end; gap:6px 8px; margin-top:6px; }
 .editor label { line-height:1.2; font-size:var(--preset-label-size); }
@@ -158,7 +159,8 @@ button { cursor:pointer; } button:disabled { cursor:default; }
 .preset-actions .auth-toggle { display:inline-grid; grid-template-columns:12px auto; align-items:center; gap:5px; min-height:26px; margin:0; cursor:pointer; }
 .auth-toggle input[type=checkbox] { position:static; transform:translateY(.5px); width:12px; height:12px; margin:0; }
 .auth-toggle span { font-family:"Microsoft YaHei UI","PingFang SC",sans-serif; line-height:1; }
-.editor .form-control { height:28px; min-height:28px; margin-top:2px; padding-block:2px; font-size:var(--preset-control-size); }
+.editor .form-control { height:28px; min-height:28px; margin-top:2px; padding:2px 8px; font-size:var(--preset-control-size); }
+.editor select.form-control { padding-inline-end:26px; }
 label { display:block; margin:0; font-size:.88em; } label .form-control { margin-top:4px; }
 .manager .form-control { color:#f4f7fa; background-color:rgba(34,48,61,.64); border:1px solid var(--line); }
 .manager .form-control:disabled { color:var(--secondary); background-color:rgba(34,48,61,.48); opacity:1; }
@@ -205,10 +207,11 @@ label { display:block; margin:0; font-size:.88em; } label .form-control { margin
 .tools button { white-space:nowrap; }
 .notice { margin:0 0 14px; border-left:3px solid #559bb7; padding:6px 10px; }
 .error { border-left:3px solid #c97659; padding-left:9px; margin-top:8px; } :focus-visible { outline:2px solid #589ac1; outline-offset:2px; }
-@container (max-width:440px) {
-  .editor { grid-template-columns:repeat(2,minmax(0,1fr)); }
+@container (max-width:550px) {
+  .editor { grid-template-columns:minmax(0,1fr) minmax(100px,1fr) minmax(0,1.3fr) minmax(62px,.6fr); }
   .preset-actions { grid-column:1/-1; justify-content:flex-end; }
 }
+@container (max-width:400px) { .editor { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @container (max-width:290px) {
   .credentials { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); grid-template-areas:"user password" ". clear"; }
   .preset-summary { grid-template-columns:10px minmax(0,1fr) auto; }
