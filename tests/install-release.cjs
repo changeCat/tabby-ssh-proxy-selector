@@ -17,7 +17,8 @@ try {
     const target = path.join(data, 'plugins', 'node_modules', name)
     const options = { cwd: release, env: { ...process.env, HOME: home, APPDATA: appData }, encoding: 'utf8' }
     fs.mkdirSync(release)
-    execFileSync('tar', ['-xf', archive, '-C', release])
+    const tar = windows ? path.join(process.env.SystemRoot, 'System32', 'tar.exe') : 'tar'
+    execFileSync(tar, ['-xf', archive, '-C', release])
     const install = () => windows
         ? execFileSync('cmd.exe', ['/d', '/c', 'install.cmd'], options)
         : execFileSync('./install.command', [], options)
