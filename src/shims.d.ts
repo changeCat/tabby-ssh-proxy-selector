@@ -3,6 +3,9 @@ declare module '@angular/core' {
     export function Injectable (_options?: any): ClassDecorator
     export function NgModule (_metadata: any): ClassDecorator
     export function Component (_metadata: any): ClassDecorator
+    export function Directive (_metadata: any): ClassDecorator
+    export class ElementRef<T> { nativeElement: T }
+    export class NgZone { runOutsideAngular<T> (callback: () => T): T }
 }
 
 declare module '@angular/common' {
@@ -28,6 +31,7 @@ declare module 'tabby-core' {
 
     export class ConfigService {
         store: any
+        readonly changed$: { subscribe (next: () => void): { unsubscribe (): void } }
         save (): void | Promise<void>
     }
 

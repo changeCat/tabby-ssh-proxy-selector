@@ -2,17 +2,21 @@ import { Component, Inject } from '@angular/core'
 import { ConfigService, ProfilesService } from 'tabby-core'
 import { randomUUID } from 'crypto'
 import { SSHProxyService } from './ssh-proxy.service'
-import { groupKey, groupLabel, pathLabel, readRouting, resolveRoute, sessionProfile, validateEndpoint } from './routing'
+import { configuredChoice, destination, groupKey, groupLabel, pathLabel, readRouting, resolveRoute, sessionProfile, validateEndpoint } from './routing'
 import { testConnection } from './connection-test'
-import { Preset, RoutingConfig } from './types'
+import { storePassword } from './proxy-credentials'
+import { Preset, RoutingConfig, usesAuthentication } from './types'
 import { styles, template } from './settings-view'
 
 @Component({ selector: 'proxy-manager-settings', standalone: false, template, styles: [styles] })
 export class ProxyManagerSettingsComponent {
     draft: RoutingConfig
     editor?: Preset
-    groups: Array<{ key: string, name: string, profiles: any[] }>
-    count: number
+    readonly endpointLabel = destination
+    readonly usesAuthentication = usesAuthentication
+    passwordEdits: Record<string, string> = Object.create(null)
+    groups: Array<{ key: string, name: string, profiles: any[], collapsed: boolean }> = []
+    count = 0
     dirty = false
     saving = false
     message = ''
@@ -27,15 +31,29 @@ export class ProxyManagerSettingsComponent {
     testing = false
     opening = false
     private revision = 0
+    private readonly configChanges: { unsubscribe (): void }
 
     constructor (
         @Inject(ConfigService) private config: ConfigService,
         @Inject(ProfilesService) private profiles: ProfilesService,
         @Inject(SSHProxyService) public runtime: SSHProxyService,
     ) {
-        const store = config.store
-        this.draft = readRouting(store.proxyManager)
+        this.draft = readRouting(config.store.proxyManager)
         this.editor = this.draft.presets[0]
+        this.refreshGroups()
+        this.configChanges = config.changed$.subscribe(() => this.refreshGroups())
+    }
+
+    ngOnDestroy (): void {
+        this.configChanges.unsubscribe()
+    }
+
+    groupId (_index: number, group: { key: string }): string { return group.key }
+    presetId (_index: number, preset: Preset): string { return preset.id }
+
+    private refreshGroups (): void {
+        const store = this.config.store
+        const collapsed = new Set(this.groups.filter(g => g.collapsed).map(g => g.key))
         const ssh = (store.profiles || []).filter(p => p.type === 'ssh' && p.id)
         this.count = ssh.length
         const grouped = new Map<string, any[]>()
@@ -44,7 +62,21 @@ export class ProxyManagerSettingsComponent {
             if (!grouped.has(key)) { grouped.set(key, []) }
             grouped.get(key)!.push(profile)
         }
-        this.groups = Array.from(grouped, ([key, profiles]) => ({ key, name: groupLabel(key, store), profiles }))
+        this.groups = Array.from(grouped, ([key, profiles]) => ({ key, name: groupLabel(key, store), profiles, collapsed: collapsed.has(key) }))
+        if (this.active) {
+            this.active = ssh.find(p => p.id === this.active.id)
+            this.fullProfile = this.active ? this.profiles.getConfigProxyForProfile(this.active) : null
+            this.refreshPreview()
+        }
+    }
+
+    connectionChoice (profileId: string, group: string): string {
+        return configuredChoice(this.draft, profileId, group)
+    }
+
+    useTemporary (choice: string): void {
+        this.temporary = choice
+        this.refreshPreview()
     }
 
     changed (): void {
@@ -63,6 +95,24 @@ export class ProxyManagerSettingsComponent {
         this.editor = { id: randomUUID(), name: '新代理', protocol: 'socks5', host: '127.0.0.1', port: '1080' }
         this.draft.presets.push(this.editor)
         this.changed()
+        const id = this.editor.id
+        requestAnimationFrame(() => document.getElementById('ssh-proxy-editor-' + id)?.querySelector('input')?.focus())
+    }
+
+    clearAuthentication (preset: Preset): void {
+        preset.authEnabled = false
+        delete preset.username
+        delete preset.encryptedPassword
+        delete this.passwordEdits[preset.id]
+        this.changed()
+    }
+
+    private applyPasswordEdit (preset: Preset): void {
+        const password = this.passwordEdits[preset.id]
+        if (password) { storePassword(preset, password) }
+        if (usesAuthentication(preset) && (!preset.username || !preset.encryptedPassword)) {
+            throw new Error('请同时填写代理用户名和密码')
+        }
     }
 
     removePreset (): void {
@@ -73,6 +123,7 @@ export class ProxyManagerSettingsComponent {
             return
         }
         this.draft.presets = this.draft.presets.filter(p => p.id !== id)
+        delete this.passwordEdits[id]
         this.editor = this.draft.presets[0]
         if (this.temporary === id) { this.temporary = '' }
         this.changed()
@@ -87,6 +138,16 @@ export class ProxyManagerSettingsComponent {
 
     private currentRoute () {
         return resolveRoute(this.draft, this.active, this.config.store, this.temporary)
+    }
+
+    private connectionRoute () {
+        const route = this.currentRoute()
+        if (route.preset) {
+            route.preset = { ...route.preset }
+            validateEndpoint(route.preset)
+            if (usesAuthentication(route.preset)) { this.applyPasswordEdit(route.preset) }
+        }
+        return route
     }
 
     refreshPreview (): void {
@@ -110,10 +171,11 @@ export class ProxyManagerSettingsComponent {
         this.refreshPreview()
         const revision = this.revision
         try {
-            const options = sessionProfile(this.fullProfile, this.currentRoute()).options
+            const route = this.connectionRoute()
+            const options = sessionProfile(this.fullProfile, route).options
             await testConnection(options, step => {
                 if (revision === this.revision) { this.steps.push(step) }
-            })
+            }, route.preset)
         } catch (error) {
             if (revision === this.revision) {
                 const step = this.steps[this.steps.length - 1]
@@ -129,9 +191,7 @@ export class ProxyManagerSettingsComponent {
         this.opening = true
         this.actionError = ''
         try {
-            const route = this.currentRoute()
-            if (route.preset) { validateEndpoint(route.preset) }
-            await this.runtime.openOnce(this.active, route)
+            await this.runtime.openOnce(this.active, this.connectionRoute())
         } catch (error) {
             this.actionError = error.message
         } finally { this.opening = false }
@@ -150,6 +210,7 @@ export class ProxyManagerSettingsComponent {
                 preset.port = String(preset.port).trim()
                 if (!preset.name || names.has(preset.name)) { throw new Error('请为每个预设填写不同的名称') }
                 validateEndpoint(preset)
+                this.applyPasswordEdit(preset)
                 names.add(preset.name)
             }
             const manager = this.config.store.proxyManager
@@ -164,6 +225,7 @@ export class ProxyManagerSettingsComponent {
             const editorId = this.editor?.id
             this.draft = readRouting(manager)
             this.editor = this.draft.presets.find(p => p.id === editorId)
+            this.passwordEdits = Object.create(null)
             this.dirty = false
             this.refreshPreview()
             this.message = '已保存。新连接将使用更新后的线路。'

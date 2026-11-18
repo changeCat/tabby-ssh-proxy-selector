@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@angular/core'
 import { AppService, ConfigService, ProfilesService } from 'tabby-core'
 import { SSHTabComponent } from 'tabby-ssh'
 import { readRouting, resolveRoute, sessionProfile, pathLabel, Route } from './routing'
+import { withProxySession } from './proxy-session'
+import { usesAuthentication } from './types'
 
 @Injectable()
 export class SSHProxyService {
@@ -38,10 +40,13 @@ export class SSHProxyService {
             const runtime = sessionProfile(profile, route)
             // "Connect once" should really exercise the chosen path, even when a session is reusable.
             if (temporary) { args[0] = false }
-            const session = await setup.call(this, injector, runtime, ...args)
+            const authenticated = route.preset && usesAuthentication(route.preset)
+            const session = authenticated
+                ? await withProxySession(route.preset!, runtime, local => setup.call(this, injector, local, false))
+                : await setup.call(this, injector, runtime, ...args)
             if (session?.profile?.options) {
                 service.recent.set(profile.id, {
-                    path: pathLabel(session.profile.options, route.preset),
+                    path: pathLabel(authenticated ? runtime.options : session.profile.options, route.preset),
                     source: route.source, time: new Date().toLocaleTimeString(),
                 })
             }

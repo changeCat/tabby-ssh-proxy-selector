@@ -36,7 +36,7 @@ async function readBanner (socket: Socket): Promise<void> {
     }
 }
 
-export async function testConnection (options: any, progress: (step: string) => void): Promise<void> {
+export async function testConnection (options: any, progress: (step: string) => void, preset?: ProxyEndpoint): Promise<void> {
     const host = options.host?.trim()
     const port = Number(options.port ?? 22)
     if (!host || !Number.isInteger(port) || port < 1 || port > 65535) { throw new Error('目标主机或端口无效') }
@@ -44,7 +44,7 @@ export async function testConnection (options: any, progress: (step: string) => 
     let socket: Socket
     if (options.socksProxyHost || options.httpProxyHost) {
         const socks = !!options.socksProxyHost
-        const proxy: ProxyEndpoint = {
+        const proxy: ProxyEndpoint = preset ?? {
             protocol: socks ? 'socks5' : 'http-connect', host: socks ? options.socksProxyHost : options.httpProxyHost,
             port: String(socks ? options.socksProxyPort || 1080 : options.httpProxyPort || 8080),
         }

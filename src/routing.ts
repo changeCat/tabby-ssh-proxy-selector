@@ -45,12 +45,16 @@ export interface Route {
     preset?: Preset
 }
 
+export function configuredChoice (config: RoutingConfig, profileId: string, group: string): string {
+    return config.profiles[profileId] || config.groups[group] || 'native'
+}
+
 export function resolveRoute (config: RoutingConfig, profile: any, store: any, temporary?: string): Route {
     const group = groupKey(profile)
     const own = config.profiles[profile.id]
     const inherited = config.groups[group]
-    const choice = temporary || own || inherited || 'native'
-    const source = temporary ? '仅本次' : own ? '单机规则' : inherited ? '分组 · ' + groupLabel(group, store) : 'Tabby 设置'
+    const choice = temporary || configuredChoice(config, profile.id, group)
+    const source = temporary ? '仅本次' : own ? '单机规则' : inherited ? '分组 · ' + groupLabel(group, store) : '默认线路'
     const preset = config.presets.find(item => item.id === choice)
     if (choice !== 'native' && choice !== 'direct' && !preset) { throw new Error('找不到所选代理预设，请重新选择线路') }
     return { choice, source, preset }
@@ -86,15 +90,18 @@ export function destination (options: any): string {
     return (host.includes(':') && !host.startsWith('[') ? '[' + host + ']' : host) + ':' + (options.port || 22)
 }
 
-export function pathLabel (options: any, preset?: Preset): string {
-    const target = destination(options)
-    if (options.proxyCommand) { return 'Tabby 代理命令 → ' + target }
-    if (options.jumpHost) { return '跳板 ' + options.jumpHost + ' → ' + target }
+export function proxyLabel (options: any, preset?: Preset): string {
+    if (options.proxyCommand) { return 'SSH 代理命令' }
+    if (options.jumpHost) { return 'SSH 跳板 · ' + options.jumpHost }
     const socks = !!options.socksProxyHost
-    if (!socks && !options.httpProxyHost) { return '直连 → ' + target }
+    if (!socks && !options.httpProxyHost) { return '' }
     const host = socks ? options.socksProxyHost : options.httpProxyHost
     const port = socks ? options.socksProxyPort || 1080 : options.httpProxyPort || 8080
     const matches = preset && preset.host === host && +preset.port === +port && (preset.protocol === 'socks5') === socks
     const label = matches ? preset.name : socks ? 'SOCKS5' : 'HTTP CONNECT'
-    return label + ' (' + destination({ host, port }) + ') → ' + target
+    return label + ' (' + destination({ host, port }) + ')'
+}
+
+export function pathLabel (options: any, preset?: Preset): string {
+    return (proxyLabel(options, preset) || '直连') + ' → ' + destination(options)
 }

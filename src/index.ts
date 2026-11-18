@@ -7,6 +7,7 @@ import { SSHProxySelectorConfigProvider } from './config'
 import { ProxyManagerSettingsComponent } from './settings-tab.component'
 import { ProxyManagerSettingsProvider } from './settings.provider'
 import { SSHProxyService } from './ssh-proxy.service'
+import { RouteScrollDirective } from './route-scroll.directive'
 
 @NgModule({
     imports: [
@@ -15,6 +16,7 @@ import { SSHProxyService } from './ssh-proxy.service'
     ],
     declarations: [
         ProxyManagerSettingsComponent,
+        RouteScrollDirective,
     ],
     providers: [
         {

@@ -25,6 +25,98 @@ test('legacy selections, group IDs and explicit direct overrides', () => {
     assert.throws(() => resolveRoute(config, profile, store), /预设/)
 })
 
+function loadSettings () {
+    const load = Module._load
+    try {
+        Module._load = function (id, ...args) {
+            if (id === '@angular/core') { return { Component: () => target => target, Inject: () => () => {} } }
+            if (id === 'tabby-core' || id === './ssh-proxy.service') { return {} }
+            return load.call(this, id, ...args)
+        }
+        return require('../dist/settings-tab.component').ProxyManagerSettingsComponent
+    } finally { Module._load = load }
+}
+
+test('settings keep the group preset through save and inherit it for newly added profiles', async () => {
+    const Settings = loadSettings()
+    const listeners = new Set()
+    const store = { profiles: [profile], proxyManager: {} }
+    let saved
+    const config = {
+        store,
+        changed$: { subscribe (listener) {
+            listeners.add(listener)
+            return { unsubscribe: () => listeners.delete(listener) }
+        } },
+        async save () {
+            saved = JSON.stringify(store.proxyManager)
+            for (const listener of listeners) { listener() }
+        },
+    }
+    const settings = new Settings(config, {}, {})
+    const group = settings.groups[0].key
+    settings.setRule(settings.draft.groups, group, 'default')
+    assert.equal(settings.connectionChoice(profile.id, group), 'default')
+    await settings.save()
+    assert.equal(JSON.parse(saved).routing.groups[group], 'default')
+    settings.ngOnDestroy()
+    store.proxyManager = JSON.parse(saved)
+
+    const reopened = new Settings(config, {}, {})
+    assert.equal(reopened.connectionChoice(profile.id, group), 'default')
+    reopened.setRule(reopened.draft.profiles, profile.id, 'direct')
+    reopened.groups[0].collapsed = true
+    store.profiles.push({ ...profile, id: 'new' })
+    for (const listener of listeners) { listener() }
+    assert.equal(reopened.count, 2)
+    assert.equal(reopened.groups[0].collapsed, true)
+    assert.equal(reopened.draft.profiles.new, undefined)
+    assert.equal(reopened.connectionChoice('new', group), 'default')
+    assert.equal(reopened.connectionChoice(profile.id, group), 'direct')
+    reopened.ngOnDestroy()
+    assert.equal(listeners.size, 0)
+})
+
+test('optional proxy credentials survive blank password edits and require a complete pair', async () => {
+    const Settings = loadSettings()
+    const config = { store: { proxyManager: {} }, changed$: { subscribe: () => ({ unsubscribe () {} }) }, save: async () => {} }
+    const settings = new Settings(config, {}, {})
+    settings.editor.authEnabled = true
+    settings.passwordEdits[settings.editor.id] = 'draft-password'
+    await settings.save()
+    assert.equal(settings.hasError, true)
+    assert.equal(config.store.proxyManager.routing, undefined)
+
+    settings.clearAuthentication(settings.editor)
+    settings.editor.authEnabled = true
+    settings.editor.username = 'alice'
+    await settings.save()
+    assert.equal(settings.hasError, true)
+    settings.editor.encryptedPassword = 'previously-encrypted'
+    await settings.save()
+    assert.equal(settings.hasError, false)
+    const saved = config.store.proxyManager.routing.presets[0]
+    assert.equal(saved.encryptedPassword, 'previously-encrypted')
+    settings.editor.authEnabled = false
+    await settings.save()
+    const reopened = new Settings(config, {}, {})
+    assert.equal(reopened.usesAuthentication(reopened.editor), false)
+    assert.equal(reopened.editor.username, 'alice')
+    assert.equal(reopened.editor.encryptedPassword, saved.encryptedPassword)
+    reopened.ngOnDestroy()
+    settings.editor.authEnabled = true
+    settings.editor.username = ''
+    await settings.save()
+    assert.equal(settings.hasError, true)
+    assert.equal(saved.username, 'alice')
+
+    settings.clearAuthentication(settings.editor)
+    await settings.save()
+    assert.equal(settings.hasError, false)
+    assert.equal(config.store.proxyManager.routing.presets[0].encryptedPassword, undefined)
+    assert.equal(config.store.proxyManager.routing.presets[0].username, undefined)
+})
+
 test('normal login, retries and concurrent temporary tabs stay isolated', async () => {
     class Tab {
         async initializeSession (failFirst = false) {

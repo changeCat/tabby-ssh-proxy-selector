@@ -19,6 +19,7 @@ try {
     fs.mkdirSync(release)
     const tar = windows ? path.join(process.env.SystemRoot, 'System32', 'tar.exe') : 'tar'
     execFileSync(tar, ['-xf', archive, '-C', release])
+    assert.deepEqual(fs.readdirSync(release).sort(), ['install.cmd', 'install.command', name].sort())
     const install = () => windows
         ? execFileSync('cmd.exe', ['/d', '/c', 'install.cmd'], options)
         : execFileSync('./install.command', [], options)
@@ -41,7 +42,7 @@ try {
 
     fs.unlinkSync(path.join(release, name, manifest.main))
     const failed = windows
-        ? spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'install.ps1'], options)
+        ? spawnSync('cmd.exe', ['/d', '/c', 'install.cmd'], options)
         : spawnSync('./install.command', [], options)
     assert.equal(failed.error, undefined)
     assert.notEqual(failed.status, 0)

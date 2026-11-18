@@ -34,9 +34,7 @@ try {
     const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32', 'tar.exe') : 'tar'
     execFileSync(tar, ['-xzf', path.join(stage, archive + '.tgz'), '-C', stage])
     addDirectory(path.join(stage, 'package'), name)
-    for (const launcher of ['install.cmd', 'install.ps1']) {
-        addFile(path.join(__dirname, launcher), launcher)
-    }
+    addFile(path.join(__dirname, 'install.cmd'), 'install.cmd')
     addFile(path.join(__dirname, 'install.command'), 'install.command', 0o100755)
 
     const zip = path.join(stage, archive + '.zip')
