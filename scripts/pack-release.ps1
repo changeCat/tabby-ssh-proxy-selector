@@ -1,33 +1,32 @@
 $ErrorActionPreference = 'Stop'
-
-$packageFile = npm pack
-$packageFile = $packageFile | Select-Object -Last 1
-
-$package = Get-Content ./package.json | ConvertFrom-Json
-$packageName = $package.name
-$packageVersion = $package.version
-$zipFile = "$packageName-$packageVersion.zip"
-
-$stageRoot = Join-Path $PWD 'release-stage'
-$extractRoot = Join-Path $stageRoot 'extract'
-$moduleRoot = Join-Path $stageRoot 'module'
-$finalModuleDir = Join-Path $moduleRoot $packageName
-
-if (Test-Path $stageRoot) {
-    Remove-Item $stageRoot -Recurse -Force
+$repo = (Get-Item -LiteralPath (Join-Path $PSScriptRoot '..')).FullName
+$package = Get-Content -LiteralPath (Join-Path $repo 'package.json') -Raw | ConvertFrom-Json
+$name = 'tabby-ssh-proxy-selector'
+if ($package.name -ne $name -or $package.version -notmatch '^\d+\.\d+\.\d+$') {
+    throw 'Unexpected package name or version.'
 }
 
-New-Item -ItemType Directory -Path $extractRoot | Out-Null
-New-Item -ItemType Directory -Path $moduleRoot | Out-Null
+$archive = "$name-$($package.version)"
+$stage = Join-Path $repo ('.release-' + [guid]::NewGuid())
+Push-Location -LiteralPath $repo
+try {
+    $null = New-Item -ItemType Directory -Path $stage
+    npm.cmd pack --pack-destination $stage
+    if ($LASTEXITCODE -ne 0) { throw 'npm pack failed.' }
 
-tar -xzf $packageFile -C $extractRoot
-Move-Item (Join-Path $extractRoot 'package') $finalModuleDir
+    tar.exe -xzf (Join-Path $stage "$archive.tgz") -C $stage
+    if ($LASTEXITCODE -ne 0) { throw 'Could not extract the npm package.' }
+    Rename-Item -LiteralPath (Join-Path $stage 'package') -NewName $name
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install.cmd'), (Join-Path $PSScriptRoot 'install.ps1') -Destination $stage
 
-if (Test-Path $zipFile) {
-    Remove-Item $zipFile -Force
+    $zip = Join-Path $stage "$archive.zip"
+    tar.exe -a -cf $zip -C $stage install.cmd install.ps1 $name
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the release ZIP.' }
+    Move-Item -LiteralPath $zip -Destination (Join-Path $repo "$archive.zip") -Force
+    Write-Host "Created $archive.zip"
+} finally {
+    Pop-Location
+    if ((Split-Path -Parent $stage) -eq $repo -and (Test-Path -LiteralPath $stage)) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
 }
-
-Compress-Archive -Path $finalModuleDir -DestinationPath $zipFile
-
-Write-Host "Created local release archive: $zipFile"
-Write-Host "Expanded module directory: $finalModuleDir"

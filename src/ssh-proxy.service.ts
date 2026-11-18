@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core'
+import { AsyncLocalStorage } from 'async_hooks'
 import { ConfigService } from 'tabby-core'
 import { pluginError, pluginLog } from './logger'
 import { createProxySocket } from './proxy-socket'
@@ -10,7 +11,7 @@ export class SSHProxyService {
     private static transportPatched = false
     private patchedRuntimeStarts = new WeakSet<object>()
     private patchedRuntimePrototypes = new WeakSet<object>()
-    private activeProfiles: any[] = []
+    private readonly activeProfile = new AsyncLocalStorage<any>()
 
     constructor (
         private config: ConfigService,
@@ -61,14 +62,14 @@ export class SSHProxyService {
                     return await original.apply(this, args)
                 }
 
-                const profile = methodName === 'setupOneSession'
-                    ? self.prepareSetupOneSessionProfile(this, args, resolvedProfile)
-                    : resolvedProfile
-
-                const proxy = self.getProxyForProfile(profile)
+                const proxy = self.getProxyForProfile(resolvedProfile)
                 if (!proxy) {
-                    return await original.apply(this, args)
+                    return await self.activeProfile.run(resolvedProfile, () => original.apply(this, args))
                 }
+
+                const profile = methodName === 'setupOneSession'
+                    ? self.prepareSetupOneSessionProfile(this, args, resolvedProfile, proxy)
+                    : resolvedProfile
 
                 const host = self.resolveHost(profile)
                 const port = self.resolvePort(profile)
@@ -89,7 +90,7 @@ export class SSHProxyService {
                     throw error
                 }
 
-                const result = await self.runWithActiveProfile(profile, () => original.apply(this, args))
+                const result = await self.activeProfile.run(profile, () => original.apply(this, args))
 
                 if (sock) {
                     self.injectSock(result ? [result, ...args] : args, profile, sock, this, `${methodName}:post-call`)
@@ -177,13 +178,13 @@ export class SSHProxyService {
 
                 const proxy = self.getProxyForProfile(profile)
                 if (!proxy) {
-                    return await original.apply(this, args)
+                    return await self.activeProfile.run(profile, () => original.apply(this, args))
                 }
 
                 self.applyProfileProxy(profile, proxy, `SSHSession.start:${key}:pre`)
                 self.injectSock(args, profile, null, this, `SSHSession.start:${key}:pre`)
 
-                return await self.runWithActiveProfile(profile, () => original.apply(this, args))
+                return await self.activeProfile.run(profile, () => original.apply(this, args))
             }
 
             ;(prototype.start as any).__tabbyProxyPatched = true
@@ -279,7 +280,8 @@ export class SSHProxyService {
             return false
         }
 
-        const seenSet = patchKind.includes('prototype') ? this.patchedRuntimePrototypes : this.patchedRuntimeStarts
+        const sharedPrototype = patchKind.includes('prototype')
+        const seenSet = sharedPrototype ? this.patchedRuntimePrototypes : this.patchedRuntimeStarts
         if (seenSet.has(holder)) {
             return false
         }
@@ -287,7 +289,8 @@ export class SSHProxyService {
         const original = holder.start
         const self = this
         holder.start = async function (...args: any[]) {
-            const profile = self.extractSSHProfile(this) ?? self.findSSHProfileArg(args) ?? resolvedProfile
+            const profile = self.extractSSHProfile(this) ?? self.findSSHProfileArg(args)
+                ?? (sharedPrototype ? self.activeProfile.getStore() : resolvedProfile)
             const proxy = self.getProxyForProfile(profile)
 
             if (proxy && profile) {
@@ -295,7 +298,7 @@ export class SSHProxyService {
                 self.injectSock(args, profile, null, this, `${source}.runtime-start`)
             }
 
-            return await self.runWithActiveProfile(profile, () => original.apply(this, args))
+            return await self.activeProfile.run(profile, () => original.apply(this, args))
         }
 
         seenSet.add(holder)
@@ -378,7 +381,7 @@ export class SSHProxyService {
         const patchedMethods: string[] = []
 
         const newSocketWrapper = async (address: string, ...args: any[]) => {
-            const profile = self.getActiveProfile()
+            const profile = self.activeProfile.getStore()
             const proxy = self.getProxyForProfile(profile)
             const target = self.parseTransportAddress(address)
 
@@ -394,7 +397,7 @@ export class SSHProxyService {
         }
 
         const newSocksProxyWrapper = async (proxyHost: string, proxyPort: number, host: string, port: number, ...args: any[]) => {
-            const profile = self.getActiveProfile()
+            const profile = self.activeProfile.getStore()
             const proxy = self.getProxyForProfile(profile)
 
             if (proxy && proxy.protocol === 'socks5') {
@@ -405,7 +408,7 @@ export class SSHProxyService {
         }
 
         const newHttpProxyWrapper = async (proxyHost: string, proxyPort: number, host: string, port: number, ...args: any[]) => {
-            const profile = self.getActiveProfile()
+            const profile = self.activeProfile.getStore()
             const proxy = self.getProxyForProfile(profile)
 
             if (proxy && proxy.protocol === 'http-connect') {
@@ -438,44 +441,19 @@ export class SSHProxyService {
         })
     }
 
-    private getActiveProfile (): any | null {
-        for (let index = this.activeProfiles.length - 1; index >= 0; index--) {
-            const profile = this.activeProfiles[index]
-            if (profile && typeof profile === 'object') {
-                return profile
-            }
-        }
-        return null
-    }
-
-    private async runWithActiveProfile<T> (profile: any, fn: () => Promise<T>): Promise<T> {
-        if (!profile || typeof profile !== 'object') {
-            return await fn()
-        }
-
-        this.activeProfiles.push(profile)
-        try {
-            return await fn()
-        } finally {
-            const lastIndex = this.activeProfiles.lastIndexOf(profile)
-            if (lastIndex >= 0) {
-                this.activeProfiles.splice(lastIndex, 1)
-            }
-        }
-    }
-
-    private prepareSetupOneSessionProfile (context: any, args: any[], fallbackProfile: any): any {
-        const profileArgIndex = args.findIndex(arg => arg && typeof arg === 'object' && this.extractSSHProfile(arg))
-        const originalProfile = profileArgIndex >= 0 ? args[profileArgIndex] : fallbackProfile
+    private prepareSetupOneSessionProfile (context: any, args: any[], originalProfile: any, proxy: ProxyManagerConfig): any {
+        const profileArgIndex = args.indexOf(originalProfile)
         const proxiedProfile = this.getConfigProxyForRuntimeProfile(context, originalProfile)
 
         if (!proxiedProfile || proxiedProfile === originalProfile) {
-            this.applyProfileProxy(originalProfile, this.getProxyConfig(), 'setupOneSession.prepared-profile')
+            this.applyProfileProxy(originalProfile, proxy, 'setupOneSession.prepared-profile')
             return originalProfile
         }
 
-        this.applyProfileProxy(proxiedProfile, this.getProxyConfig(), 'setupOneSession.prepared-config-proxy')
-        args[profileArgIndex] = proxiedProfile
+        this.applyProfileProxy(proxiedProfile, proxy, 'setupOneSession.prepared-config-proxy')
+        if (profileArgIndex >= 0) {
+            args[profileArgIndex] = proxiedProfile
+        }
         return proxiedProfile
     }
 

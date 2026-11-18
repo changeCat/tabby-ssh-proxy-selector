@@ -114,56 +114,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build package
-        run: npm run build
-
-      - name: Show release plan
-        shell: pwsh
-        run: |
-          Write-Host "Release version: ${{ needs.resolve-release.outputs.release_version }}"
-          Write-Host "Release tag: ${{ needs.resolve-release.outputs.release_tag }}"
-
       - name: Pack release archive
         id: pack
         shell: pwsh
         run: |
-          $packageFile = npm pack
-          $packageFile = $packageFile | Select-Object -Last 1
-
-          $package = Get-Content package.json | ConvertFrom-Json
-          $packageName = $package.name
-          $packageVersion = $package.version
-          $zipFile = "$packageName-$packageVersion.zip"
-
-          $stageRoot = Join-Path $PWD 'release-stage'
-          $extractRoot = Join-Path $stageRoot 'extract'
-          $moduleRoot = Join-Path $stageRoot 'module'
-          $finalModuleDir = Join-Path $moduleRoot $packageName
-
-          if (Test-Path $stageRoot) {
-            Remove-Item $stageRoot -Recurse -Force
-          }
-
-          New-Item -ItemType Directory -Path $extractRoot | Out-Null
-          New-Item -ItemType Directory -Path $moduleRoot | Out-Null
-
-          tar -xzf $packageFile -C $extractRoot
-          Move-Item (Join-Path $extractRoot 'package') $finalModuleDir
-
-          if (Test-Path $zipFile) {
-            Remove-Item $zipFile -Force
-          }
-
-          Compress-Archive -Path $finalModuleDir -DestinationPath $zipFile
-
-          "package_file=$zipFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Created release archive: $zipFile"
+          npm run pack:release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          "package_file=$($package.name)-$($package.version).zip" >> $env:GITHUB_OUTPUT
 
       - name: Create Git tag
+        env:
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
         uses: actions/github-script@v8
         with:
           script: |
-            const tag = '${{ needs.resolve-release.outputs.release_tag }}'
+            const tag = process.env.RELEASE_TAG
             const owner = context.repo.owner
             const repo = context.repo.repo
             const sha = context.sha

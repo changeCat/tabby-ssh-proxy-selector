@@ -394,19 +394,6 @@ export class ProxyManagerSettingsComponent {
         this.config.store.proxyManager.port = this.port.trim()
         this.config.store.proxyManager.selectedProfileIds = Array.from(this.selectedProfileIds)
 
-        const profiles = this.config.store?.profiles || []
-        for (const profile of profiles) {
-            if (profile.type !== 'ssh') {
-                continue
-            }
-
-            if (!profile.options) {
-                profile.options = {}
-            }
-
-            delete profile.options.proxyCommand
-        }
-
         pluginLog('settings', 'proxy manager config saved', {
             selectedProfileCount: this.config.store.proxyManager.selectedProfileIds.length,
             protocol: this.config.store.proxyManager.protocol,
