@@ -1,31 +1,37 @@
 import * as fs from 'fs'
+import { homedir } from 'os'
 import * as path from 'path'
 
 const LOG_FILE_NAME = 'tabby-ssh-proxy-selector.log'
+let logPath: string | null = null
 
 function resolveLogPath (): string | null {
-    const candidates = [
-        process.env.APPDATA,
-        process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'AppData', 'Roaming') : null,
-        process.cwd(),
-    ].filter(Boolean) as string[]
-
-    for (const base of candidates) {
+    if (!logPath) {
         try {
-            const tabbyDir = path.join(base, 'tabby')
-            fs.mkdirSync(tabbyDir, { recursive: true })
-            return path.join(tabbyDir, LOG_FILE_NAME)
+            let base: string
+            switch (process.platform) {
+                case 'darwin':
+                    base = path.join(homedir(), 'Library', 'Application Support')
+                    break
+                case 'win32':
+                    base = process.env.APPDATA || path.join(homedir(), 'AppData', 'Roaming')
+                    break
+                default:
+                    base = process.env.XDG_CONFIG_HOME || path.join(homedir(), '.config')
+            }
+            const directory = path.join(base, 'tabby')
+            fs.mkdirSync(directory, { recursive: true })
+            logPath = path.join(directory, LOG_FILE_NAME)
         } catch {
-            // ignore
+            return null
         }
     }
-
-    return null
+    return logPath
 }
 
 export function pluginLog (scope: string, message: string, extra?: any): void {
-    const logPath = resolveLogPath()
-    if (!logPath) {
+    const destination = resolveLogPath()
+    if (!destination) {
         return
     }
 
@@ -41,9 +47,9 @@ export function pluginLog (scope: string, message: string, extra?: any): void {
     }
 
     try {
-        fs.appendFileSync(logPath, `[${time}] [${scope}] ${message}${serializedExtra}\n`, 'utf8')
+        fs.appendFileSync(destination, `[${time}] [${scope}] ${message}${serializedExtra}\n`, 'utf8')
     } catch {
-        // ignore
+        logPath = null
     }
 }
 

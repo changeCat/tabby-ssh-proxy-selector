@@ -1,4 +1,5 @@
 declare module '@angular/core' {
+    export function Inject (token: any): ParameterDecorator
     export function Injectable (_options?: any): ClassDecorator
     export function NgModule (_metadata: any): ClassDecorator
     export function Component (_metadata: any): ClassDecorator
@@ -13,6 +14,13 @@ declare module '@angular/forms' {
 }
 
 declare module 'tabby-core' {
+    export class ProfilesService {
+        newTabParametersForProfile (profile: any): Promise<any>
+        getConfigProxyForProfile (profile: any): any
+    }
+    export class AppService {
+        openNewTab (params: any): any
+    }
     export class ConfigProvider {
         defaults?: any
         platformDefaults?: any
@@ -40,22 +48,9 @@ declare module 'tabby-settings' {
 }
 
 declare module 'tabby-ssh' {
-    export class SSHService {
-        connect? (...args: any[]): any
-        openConnection? (...args: any[]): any
-        startSession? (...args: any[]): any
-        createConnection? (...args: any[]): any
-        getNewConnectionConfig? (...args: any[]): any
-        buildConnectionConfig? (...args: any[]): any
-        makeConnectionConfig? (...args: any[]): any
-        getConnectionConfig? (...args: any[]): any
-        prepareConnectionConfig? (...args: any[]): any
-        getConfig? (...args: any[]): any
-    }
-}
-
-declare module 'ssh2' {
-    export class Client {
-        connect (config: any): any
+    export class SSHTabComponent {
+        profile: any
+        setupOneSession (injector: any, profile: any, multiplex?: boolean): Promise<any>
+        initializeSession (): Promise<void>
     }
 }

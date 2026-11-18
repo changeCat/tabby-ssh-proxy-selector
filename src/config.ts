@@ -5,19 +5,10 @@ import { ConfigProvider } from 'tabby-core'
 export class SSHProxySelectorConfigProvider extends ConfigProvider {
     defaults = {
         proxyManager: {
-            protocol: 'socks5',
-            host: '127.0.0.1',
-            port: '1080',
-            selectedProfileIds: [],
+            protocol: 'socks5', host: '127.0.0.1', port: '1080', selectedProfileIds: [],
+            // A nullable leaf lets Tabby persist the complete routing document.
+            routing: null,
         },
     }
-
-    platformDefaults = {
-        proxyManager: {
-            protocol: 'socks5',
-            host: '127.0.0.1',
-            port: '1080',
-            selectedProfileIds: [],
-        },
-    }
+    platformDefaults = {}
 }

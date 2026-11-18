@@ -1,23 +1,18 @@
 export type ProxyProtocol = 'socks5' | 'http-connect'
 
-export interface ProxyManagerConfig {
+export interface ProxyEndpoint {
     protocol: ProxyProtocol
     host: string
     port: string
-    selectedProfileIds: string[]
 }
 
-export interface ProxyEntry {
+export interface Preset extends ProxyEndpoint {
     id: string
     name: string
-    type: string
-    host: string
-    port: number
-    username?: string
-    password?: string
 }
 
-export interface SSHProxySelectorConfig {
-    proxies: ProxyEntry[]
-    profileProxyMap: Record<string, string>
+export interface RoutingConfig {
+    presets: Preset[]
+    groups: Record<string, string>
+    profiles: Record<string, string>
 }

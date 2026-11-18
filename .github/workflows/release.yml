@@ -96,10 +96,12 @@ jobs:
             core.setOutput('release_version', currentVersion)
             core.info(`Resolved release tag: ${resolvedTag}`)
 
-  build-and-release:
+  build:
     needs: resolve-release
     if: needs.resolve-release.outputs.should_release == 'true'
-    runs-on: windows-latest
+    runs-on: macos-latest
+    outputs:
+      archive: ${{ steps.pack.outputs.package_file }}
 
     steps:
       - name: Checkout
@@ -116,12 +118,35 @@ jobs:
 
       - name: Pack release archive
         id: pack
-        shell: pwsh
+        env:
+          VERSION: ${{ needs.resolve-release.outputs.release_version }}
         run: |
           npm run pack:release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $package = Get-Content package.json -Raw | ConvertFrom-Json
-          "package_file=$($package.name)-$($package.version).zip" >> $env:GITHUB_OUTPUT
+          echo "package_file=tabby-ssh-proxy-selector-$VERSION.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Test CONNECT and macOS installation
+        run: |
+          npm test
+          node tests/install-release.cjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: ${{ steps.pack.outputs.package_file }}
+
+  publish:
+    needs: [resolve-release, build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 18
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-zip
+      - name: Test Windows installation
+        run: node tests/install-release.cjs
 
       - name: Create Git tag
         env:
@@ -153,7 +178,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
-          PACKAGE_FILE: ${{ steps.pack.outputs.package_file }}
+          PACKAGE_FILE: ${{ needs.build.outputs.archive }}
         run: |
           gh release view $env:RELEASE_TAG *> $null
 

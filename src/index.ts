@@ -1,4 +1,4 @@
-import { NgModule } from '@angular/core'
+import { Inject, NgModule } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import { ConfigProvider } from 'tabby-core'
@@ -32,7 +32,7 @@ import { SSHProxyService } from './ssh-proxy.service'
 })
 export default class SSHProxySelectorModule {
     constructor (
-        _service: SSHProxyService,
+        @Inject(SSHProxyService) _service: SSHProxyService,
     ) {
         // 实例化服务以自动 patch SSHService
     }

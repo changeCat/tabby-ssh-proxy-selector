@@ -1,413 +1,175 @@
-import { Component } from '@angular/core'
-import { ConfigService } from 'tabby-core'
-import { pluginLog } from './logger'
-import { ProxyProtocol } from './types'
+import { Component, Inject } from '@angular/core'
+import { ConfigService, ProfilesService } from 'tabby-core'
+import { randomUUID } from 'crypto'
+import { SSHProxyService } from './ssh-proxy.service'
+import { groupKey, groupLabel, pathLabel, readRouting, resolveRoute, sessionProfile, validateEndpoint } from './routing'
+import { testConnection } from './connection-test'
+import { Preset, RoutingConfig } from './types'
+import { styles, template } from './settings-view'
 
-@Component({
-    selector: 'proxy-manager-settings',
-    template: `
-        <div class="settings-root d-flex flex-column h-100 p-3" style="width: 100%; max-width: 100%; overflow-x: hidden; box-sizing: border-box;">
-            <h3 class="mb-3">SSH 代理批量管理</h3>
-
-            <div class="proxy-form-row row g-3 mb-3 mx-0">
-                <div class="col-md-4">
-                    <label>代理协议</label>
-                    <select class="form-control" [(ngModel)]="protocol">
-                        <option value="socks5">SOCKS5</option>
-                        <option value="http-connect">HTTP CONNECT</option>
-                    </select>
-                </div>
-
-                <div class="col-md-4">
-                    <label>代理 IP</label>
-                    <input
-                        class="form-control"
-                        [(ngModel)]="host"
-                        placeholder="例如: 127.0.0.1">
-                </div>
-
-                <div class="col-md-4">
-                    <label>代理端口</label>
-                    <input
-                        class="form-control"
-                        [(ngModel)]="port"
-                        placeholder="例如: 1080">
-                </div>
-            </div>
-
-            <div class="form-group mb-3">
-                <label>选择要使用代理的 SSH 连接</label>
-                <div class="profile-list-shell border rounded">
-                    <div class="profile-list-container">
-                    <ng-container *ngFor="let group of groupedSSHProfiles">
-                        <div class="group-header px-3 py-2 bg-light border-bottom d-flex align-items-center justify-content-between gap-2">
-                            <span class="fw-bold">{{ group.name }}</span>
-                            <label class="d-inline-flex align-items-center gap-2 mb-0 small text-muted">
-                                <input
-                                    type="checkbox"
-                                    [checked]="isGroupFullySelected(group.profiles)"
-                                    [indeterminate]="isGroupPartiallySelected(group.profiles)"
-                                    (change)="toggleGroup(group.profiles)">
-                                <span>全选本组</span>
-                            </label>
-                        </div>
-                        <div class="list-group list-group-flush profile-group-list">
-                            <label
-                                class="list-group-item d-flex align-items-center profile-item"
-                                title="{{ profile.name }}"
-                                *ngFor="let profile of group.profiles"
-                                [class.profile-item-selected]="selectedProfileIds.has(profile.id)">
-                                <input
-                                    type="checkbox"
-                                    class="me-2"
-                                    [checked]="selectedProfileIds.has(profile.id)"
-                                    (change)="toggleProfile(profile.id)">
-                                <span>{{ profile.name }} <small class="text-muted">({{ profile.options?.host || 'unknown-host' }})</small></span>
-                            </label>
-                        </div>
-                    </ng-container>
-                    </div>
-                </div>
-                <div *ngIf="sshProfiles.length === 0" class="text-muted mt-2">
-                    没有找到任何 SSH 配置。
-                </div>
-            </div>
-
-            <div class="mt-2 d-flex align-items-center gap-3">
-                <button class="btn btn-primary" (click)="save()">保存并应用</button>
-                <div *ngIf="saveSuccessVisible" class="alert alert-success py-1 px-3 mb-0">
-                    保存成功
-                </div>
-            </div>
-        </div>
-    `,
-    styles: [`
-        :host {
-            display: block;
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-        }
-
-        :host *,
-        :host *::before,
-        :host *::after {
-            box-sizing: border-box;
-        }
-
-        .settings-root {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-        }
-
-        .proxy-form-row {
-            margin-left: 0;
-            margin-right: 0;
-        }
-
-        .proxy-form-row > [class*='col-'] {
-            padding-left: 0.75rem;
-            padding-right: 0.75rem;
-        }
-
-        .form-group,
-        .profile-list-shell,
-        .profile-list-container,
-        .list-group,
-        .profile-group-list,
-        .group-header,
-        .profile-item {
-            width: 100%;
-            max-width: 100%;
-            min-width: 0;
-        }
-
-        .group-header {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            row-gap: 0.5rem;
-            overflow: hidden;
-        }
-
-        .group-header > span,
-        .group-header > label {
-            min-width: 0;
-            max-width: 100%;
-        }
-
-        .profile-list-shell {
-            overflow: hidden;
-        }
-
-        .profile-list-container {
-            display: block;
-            max-height: 420px;
-            overflow-y: auto;
-            overflow-x: hidden;
-            overscroll-behavior-x: none;
-            scrollbar-width: thin;
-            padding-bottom: 1px;
-        }
-
-        .profile-list-container::-webkit-scrollbar:horizontal {
-            height: 0 !important;
-            display: none;
-        }
-
-        .profile-group-list {
-            overflow-x: hidden;
-        }
-
-        .profile-item {
-            position: relative;
-            display: flex;
-            cursor: pointer;
-            min-width: 0;
-            overflow: hidden;
-            transition: background-color 0.18s ease;
-        }
-
-        .profile-item span {
-            flex: 1 1 auto;
-            min-width: 0;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .profile-item:hover {
-            background-color: rgba(13, 110, 253, 0.18);
-        }
-
-        .profile-item::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            opacity: 0;
-            box-shadow: inset 3px 0 0 rgba(13, 110, 253, 0.95);
-            transition: opacity 0.18s ease;
-        }
-
-        .profile-item:hover::after {
-            opacity: 1;
-        }
-
-        .profile-item-selected {
-            background-color: rgba(13, 110, 253, 0.08);
-        }
-
-        .profile-item-selected:hover {
-            background-color: rgba(13, 110, 253, 0.2);
-        }
-    `],
-})
+@Component({ selector: 'proxy-manager-settings', standalone: false, template, styles: [styles] })
 export class ProxyManagerSettingsComponent {
-    protocol: ProxyProtocol = 'socks5'
-    host = '127.0.0.1'
-    port = '1080'
-    sshProfiles: any[] = []
-    groupedSSHProfiles: Array<{ name: string, profiles: any[] }> = []
-    selectedProfileIds = new Set<string>()
-    saveSuccessVisible = false
-    private readonly defaultGroupName = '未分组'
-    private saveSuccessTimer: ReturnType<typeof setTimeout> | null = null
+    draft: RoutingConfig
+    editor?: Preset
+    groups: Array<{ key: string, name: string, profiles: any[] }>
+    count: number
+    dirty = false
+    saving = false
+    message = ''
+    hasError = false
+    active: any
+    private fullProfile: any
+    temporary = ''
+    previewPath = ''
+    previewSource = ''
+    steps: string[] = []
+    actionError = ''
+    testing = false
+    opening = false
+    private revision = 0
 
     constructor (
-        private config: ConfigService,
+        @Inject(ConfigService) private config: ConfigService,
+        @Inject(ProfilesService) private profiles: ProfilesService,
+        @Inject(SSHProxyService) public runtime: SSHProxyService,
     ) {
-        const saved = this.config.store?.proxyManager || {}
-        this.protocol = this.normalizeProtocol(saved.protocol)
-        this.host = saved.host || '127.0.0.1'
-        this.port = String(saved.port || '1080')
-        this.loadProfiles()
-    }
-
-    ngOnDestroy (): void {
-        this.clearSaveSuccessTimer()
-    }
-
-    normalizeProtocol (value: unknown): ProxyProtocol {
-        return value === 'http-connect' ? 'http-connect' : 'socks5'
-    }
-
-    loadProfiles (): void {
-        const profiles = this.config.store?.profiles || []
-        this.sshProfiles = profiles.filter((profile: any) => profile.type === 'ssh')
-        this.groupedSSHProfiles = this.groupProfiles(this.sshProfiles)
-
-        const selectedIds = Array.isArray(this.config.store?.proxyManager?.selectedProfileIds)
-            ? this.config.store.proxyManager.selectedProfileIds
-            : []
-
-        this.selectedProfileIds = new Set(selectedIds)
-    }
-
-    groupProfiles (profiles: any[]): Array<{ name: string, profiles: any[] }> {
-        const groups = new Map<string, any[]>()
-        const groupNameLookup = this.buildGroupNameLookup()
-
-        for (const profile of profiles) {
-            const groupName = this.getProfileGroupName(profile, groupNameLookup)
-            const existingProfiles = groups.get(groupName)
-
-            if (existingProfiles) {
-                existingProfiles.push(profile)
-                continue
-            }
-
-            groups.set(groupName, [profile])
+        const store = config.store
+        this.draft = readRouting(store.proxyManager)
+        this.editor = this.draft.presets[0]
+        const ssh = (store.profiles || []).filter(p => p.type === 'ssh' && p.id)
+        this.count = ssh.length
+        const grouped = new Map<string, any[]>()
+        for (const profile of ssh) {
+            const key = groupKey(profile)
+            if (!grouped.has(key)) { grouped.set(key, []) }
+            grouped.get(key)!.push(profile)
         }
-
-        return Array.from(groups.entries()).map(([name, groupedProfiles]) => ({
-            name,
-            profiles: groupedProfiles,
-        }))
+        this.groups = Array.from(grouped, ([key, profiles]) => ({ key, name: groupLabel(key, store), profiles }))
     }
 
-    getProfileGroupName (profile: any, groupNameLookup: Map<string, string>): string {
-        const rawGroup = profile.group ?? profile.grouping ?? profile.groupPath ?? profile.options?.group
-        const resolved = this.resolveGroupValue(rawGroup, groupNameLookup)
-        return resolved || this.defaultGroupName
+    changed (): void {
+        this.dirty = true
+        this.message = ''
+        this.refreshPreview()
     }
 
-    buildGroupNameLookup (): Map<string, string> {
-        const lookup = new Map<string, string>()
-        const groups = [
-            ...(Array.isArray(this.config.store?.groups) ? this.config.store.groups : []),
-            ...(Array.isArray(this.config.store?.profileGroups) ? this.config.store.profileGroups : []),
-        ]
-
-        for (const group of groups) {
-            const id = typeof group?.id === 'string' ? group.id.trim() : ''
-            const name = typeof group?.name === 'string' ? group.name.trim() : ''
-            if (id && name) {
-                lookup.set(id, name)
-            }
-        }
-
-        return lookup
+    setRule (rules: Record<string, string>, key: string, choice: string): void {
+        if (choice) { rules[key] = choice }
+        else { delete rules[key] }
+        this.changed()
     }
 
-    resolveGroupValue (value: any, groupNameLookup: Map<string, string>): string | null {
-        if (Array.isArray(value)) {
-            const path = value
-                .map(item => this.resolveGroupValue(item, groupNameLookup))
-                .filter((item): item is string => !!item)
-                .join(' / ')
-                .trim()
-
-            return path || null
-        }
-
-        if (typeof value === 'string') {
-            const normalizedValue = value.trim()
-            if (!normalizedValue) {
-                return null
-            }
-
-            return groupNameLookup.get(normalizedValue) ?? (this.looksLikeOpaqueGroupId(normalizedValue) ? null : normalizedValue)
-        }
-
-        if (!value || typeof value !== 'object') {
-            return null
-        }
-
-        const directName = typeof value.name === 'string' ? value.name.trim() : ''
-        if (directName) {
-            return directName
-        }
-
-        const nestedPath = this.resolveGroupValue(value.path ?? value.groupPath ?? value.groupingPath, groupNameLookup)
-        if (nestedPath) {
-            return nestedPath
-        }
-
-        const id = typeof value.id === 'string' ? value.id.trim() : ''
-        if (id) {
-            return groupNameLookup.get(id) ?? null
-        }
-
-        return null
+    addPreset (): void {
+        this.editor = { id: randomUUID(), name: '新代理', protocol: 'socks5', host: '127.0.0.1', port: '1080' }
+        this.draft.presets.push(this.editor)
+        this.changed()
     }
 
-    looksLikeOpaqueGroupId (value: string): boolean {
-        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-    }
-
-    clearSaveSuccessTimer (): void {
-        if (this.saveSuccessTimer) {
-            clearTimeout(this.saveSuccessTimer)
-            this.saveSuccessTimer = null
-        }
-    }
-
-    toggleProfile (id: string): void {
-        if (this.selectedProfileIds.has(id)) {
-            this.selectedProfileIds.delete(id)
+    removePreset (): void {
+        const id = this.editor!.id
+        if ([...Object.values(this.draft.groups), ...Object.values(this.draft.profiles)].includes(id)) {
+            this.message = '仍有规则使用此预设。请先更改对应线路，再移除预设。'
+            this.hasError = true
             return
         }
-
-        this.selectedProfileIds.add(id)
+        this.draft.presets = this.draft.presets.filter(p => p.id !== id)
+        this.editor = this.draft.presets[0]
+        if (this.temporary === id) { this.temporary = '' }
+        this.changed()
     }
 
-    isGroupFullySelected (profiles: any[]): boolean {
-        return profiles.length > 0 && profiles.every(profile => this.selectedProfileIds.has(profile.id))
+    inspect (profile: any): void {
+        this.active = this.active === profile ? null : profile
+        this.fullProfile = this.active ? this.profiles.getConfigProxyForProfile(this.active) : null
+        this.temporary = ''
+        this.refreshPreview()
     }
 
-    isGroupPartiallySelected (profiles: any[]): boolean {
-        if (profiles.length === 0) {
-            return false
+    private currentRoute () {
+        return resolveRoute(this.draft, this.active, this.config.store, this.temporary)
+    }
+
+    refreshPreview (): void {
+        ++this.revision
+        this.steps = []
+        this.actionError = ''
+        this.previewSource = ''
+        if (!this.active) { return }
+        try {
+            const route = this.currentRoute()
+            this.previewSource = route.source
+            this.previewPath = pathLabel(sessionProfile(this.fullProfile, route).options, route.preset)
+        } catch (error) {
+            this.previewPath = error.message
         }
-
-        const selectedCount = profiles.filter(profile => this.selectedProfileIds.has(profile.id)).length
-        return selectedCount > 0 && selectedCount < profiles.length
     }
 
-    toggleGroup (profiles: any[]): void {
-        if (this.isGroupFullySelected(profiles)) {
-            for (const profile of profiles) {
-                this.selectedProfileIds.delete(profile.id)
+    async test (): Promise<void> {
+        if (this.testing) { return }
+        this.testing = true
+        this.refreshPreview()
+        const revision = this.revision
+        try {
+            const options = sessionProfile(this.fullProfile, this.currentRoute()).options
+            await testConnection(options, step => {
+                if (revision === this.revision) { this.steps.push(step) }
+            })
+        } catch (error) {
+            if (revision === this.revision) {
+                const step = this.steps[this.steps.length - 1]
+                this.actionError = (step ? step + '失败 · ' : '') + error.message
             }
-            return
-        }
-
-        for (const profile of profiles) {
-            this.selectedProfileIds.add(profile.id)
+        } finally {
+            this.testing = false
         }
     }
 
-    save (): void {
-        if (!this.config.store.proxyManager) {
-            this.config.store.proxyManager = {}
-        }
-
-        this.config.store.proxyManager.protocol = this.protocol
-        this.config.store.proxyManager.host = this.host.trim()
-        this.config.store.proxyManager.port = this.port.trim()
-        this.config.store.proxyManager.selectedProfileIds = Array.from(this.selectedProfileIds)
-
-        pluginLog('settings', 'proxy manager config saved', {
-            selectedProfileCount: this.config.store.proxyManager.selectedProfileIds.length,
-            protocol: this.config.store.proxyManager.protocol,
-        })
-        this.config.save()
-        this.showSaveSuccess()
+    async open (): Promise<void> {
+        if (this.opening) { return }
+        this.opening = true
+        this.actionError = ''
+        try {
+            const route = this.currentRoute()
+            if (route.preset) { validateEndpoint(route.preset) }
+            await this.runtime.openOnce(this.active, route)
+        } catch (error) {
+            this.actionError = error.message
+        } finally { this.opening = false }
     }
 
-    showSaveSuccess (): void {
-        this.saveSuccessVisible = true
-        this.clearSaveSuccessTimer()
-        this.saveSuccessTimer = setTimeout(() => {
-            this.saveSuccessVisible = false
-            this.saveSuccessTimer = null
-        }, 3000)
+    async save (): Promise<void> {
+        if (this.saving) { return }
+        this.saving = true
+        this.hasError = false
+        try {
+            const routing = readRouting({ routing: this.draft })
+            const names = new Set<string>()
+            for (const preset of routing.presets) {
+                preset.name = preset.name.trim()
+                preset.host = preset.host.trim()
+                preset.port = String(preset.port).trim()
+                if (!preset.name || names.has(preset.name)) { throw new Error('请为每个预设填写不同的名称') }
+                validateEndpoint(preset)
+                names.add(preset.name)
+            }
+            const manager = this.config.store.proxyManager
+            const previous = manager.routing
+            manager.routing = routing
+            try {
+                await this.config.save()
+            } catch (error) {
+                manager.routing = previous
+                throw error
+            }
+            const editorId = this.editor?.id
+            this.draft = readRouting(manager)
+            this.editor = this.draft.presets.find(p => p.id === editorId)
+            this.dirty = false
+            this.refreshPreview()
+            this.message = '已保存。新连接将使用更新后的线路。'
+        } catch (error) {
+            this.hasError = true
+            this.message = error.message
+        } finally { this.saving = false }
     }
 }
